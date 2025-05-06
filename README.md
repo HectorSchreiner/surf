@@ -1,4 +1,4 @@
-<p align="center" style="padding: 0 20%;">
+<p align="center">
   <img src="assets/logo_white.png" alt="Logo" style="width:100%; max-width:800px; display:block; margin:auto;">
 </p>
 
