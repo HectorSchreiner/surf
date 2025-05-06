@@ -1,0 +1,8 @@
+edition = "2024"
+group_imports = "StdExternalCrate"
+imports_granularity = "Module"
+reorder_impl_items = true
+reorder_imports = true
+reorder_modules = true
+struct_lit_width = 64
+struct_variant_width = 64
