@@ -19,10 +19,20 @@
 
 ---
 
+# How to run
+Make sure you have `rust` installed on your machine.
+You can run the program with: (undskyld sebastian)
+```bash
+cargo run
+```
+
 # 🔥 Features
 
 - **CVE Management Tool**  
     CVE management tool: For fast indexing an monitoring of the latest security vulnerabilities.
+
+
+
 # 📄 License
 
 This project is licensed under the MIT [LICENSE](./LICENSE).

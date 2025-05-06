@@ -5,10 +5,11 @@ use http::{header::ACCEPT, HeaderMap, StatusCode};
 use reqwest::{header::USER_AGENT, Client, ClientBuilder};
 use serde::Deserialize;
 use tokio::fs;
+use tracing_subscriber::fmt::format;
 use url::Url;
 use zip::{read::ZipFile, unstable::stream::ZipStreamReader, *};
 
-use std::{collections::HashMap, fs::File, num::NonZeroU8};
+use std::{collections::HashMap, fs::File, num::NonZeroU8, path::Path};
 
 pub struct Language([Option<NonZeroU8>; 3]);
 
@@ -51,33 +52,54 @@ impl VulnerabilityRepo {
         let releases = self.get_releases().await?;
         let release = &releases[0];
         let assets = self.get_assets(release.id).await?;
-        
-        let zip_output_dir = std::path::Path::new("./all.zip");
-        let extracted_output_dir = std::path::Path::new("./unzipped");
 
+        let all_zip_path = "./all.zip";
+        let cves_zip_path = ".all/cves.zip";
+        let all_extract_path = "./all";
+        let cves_extract_path = "./cves";
 
-        for asset in assets {
-            println!("{}: {}", asset.name, asset.content_type);
+        if !Path::new(all_zip_path).exists() {
+            for asset in assets {
+                println!("{}: {}", asset.name, asset.content_type);
 
-            if asset.name.contains("_all_") {
-                if let Some(contents) = self.get_asset_contents(asset.id).await? {
-
-                    fs::write(&zip_output_dir, &contents).await?;
-
+                if asset.name.contains("_all_") {
+                    if let Some(contents) = self.get_asset_contents(asset.id).await? {
+                        fs::write(all_zip_path, &contents).await?;
+                        println!("Downloaded and saved: {}", all_zip_path);
+                    }
                 }
             }
-
+        } else {
+            println!("The folder {} already exists!", all_zip_path);
         }
 
-        Self::extract(&zip_output_dir, &extracted_output_dir).await?;
-
-
-        //println!("{assets:#?}");
-
+        if !Path::new(all_extract_path).exists() {
+            Self::extract("./all.zip", "./all").await?;
+        }
+    
+        if !Path::new(cves_extract_path).exists() {
+            Self::extract("./all/cves.zip", "./cves").await?;
+        }
+    
         Ok(releases)
     }
 
-    pub async fn extract(target_dir: &std::path::Path, output_dir: &std::path::Path) -> anyhow::Result<()>{
+    async fn extract(target_dir: &str, output_dir: &str) -> anyhow::Result<()>{
+        println!("Extracting {:?} to {:?}", &target_dir, &output_dir);
+
+        let target_dir = std::path::Path::new(target_dir);
+        let output_dir = std::path::Path::new(output_dir);
+
+        if !output_dir.exists() {
+            println!("Created directory {:?}", output_dir);
+            tokio::fs::create_dir_all(output_dir).await?;
+        }
+
+        if !target_dir.exists() {
+            println!("Created directory {:?}", target_dir);
+            tokio::fs::create_dir_all(target_dir).await?;
+        }
+
         let file = tokio::fs::File::open(target_dir).await?.try_into_std().unwrap();
         let mut archive = ZipArchive::new(&file).unwrap();
 
@@ -85,6 +107,8 @@ impl VulnerabilityRepo {
             println!("upsi wupsers, something has gone wrong here. Err: {:?}", err);
         };
         
+        println!("Finished extracting {:?} to {:?}!", &target_dir, &output_dir);
+
         Ok(())
     }
 
