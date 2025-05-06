@@ -6,6 +6,9 @@
   <a href="/LICENSE">
     <img src="https://cdn.prod.website-files.com/5e0f1144930a8bc8aace526c/65dd9eb5aaca434fac4f1c34_License-MIT-blue.svg" alt="License: MIT">
   </a>
+    <img src="https://img.shields.io/badge/status-active-brightgreen.svg" alt="Project Status: Active">
+    <img src="https://img.shields.io/github/languages/top/HectorSchreiner/surf.svg" alt="Top Language">
+    <img src="https://img.shields.io/github/contributors/HectorSchreiner/surf.svg" alt="Contributors">
 </p>
 
 ---
