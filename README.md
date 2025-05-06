@@ -12,7 +12,7 @@
 
 # 🚀 About
 
-**[Project Name]** is a blazingly fast and safe **attack surface management application** built for security teams and researchers.
+**Surf** is a blazingly fast and safe **attack surface management application** built for security teams and researchers.
 
 ---
 
