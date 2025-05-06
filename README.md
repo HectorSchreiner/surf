@@ -15,15 +15,14 @@
 
 # 🚀 About
 
-**Surf** is a blazingly fast and safe **attack surface management application** built for security teams and researchers.
+**Surf** is a blazingly fast and safe **attack surface management application**.
 
 ---
 
 # 🔥 Features
 
 - **CVE Management Tool**  
-  Instantly index and monitor the latest security vulnerabilities with real-time updates and smart filtering.
-
+    CVE management tool: For fast indexing an monitoring of the latest security vulnerabilities.
 # 📄 License
 
 This project is licensed under the MIT [LICENSE](./LICENSE).
