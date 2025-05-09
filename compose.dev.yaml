@@ -9,3 +9,12 @@ services:
       - 5432:5432/tcp
     volumes:
       - ./data/postgres:/var/lib/postgresql/data
+
+  postgres-web:
+    image: sosedoff/pgweb
+    ports: 
+      - "4001:8081/tcp"
+    environment:
+      - PGWEB_DATABASE_URL=postgres://user:password@postgres:5432/main?sslmode=disable
+    depends_on:
+      - postgres

@@ -1,21 +1,20 @@
-use core::error::Error;
+use axum::Router;
+use axum::routing::{get, post};
+use http::StatusCode;
+use tokio::net::TcpListener;
 
-use repos::{ListVulnerabilities, VulnerabilityRepo};
+use crate::repos::Postgres;
 
+mod domains;
 mod repos;
+mod routes;
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
+async fn main() -> anyhow::Result<()> {
+    let vulnerability_repo = Postgres::connect().await?;
 
-    let vulnerability_repo = VulnerabilityRepo::new().await?;
-
-    let commits = vulnerability_repo.list_vulnerabilities(ListVulnerabilities {}).await?;
-    //let release = vulnerability_repo.get_release_notes("cve_2025-04-27_1400Z").await?;
-
-
-    //let file = tokio::fs::File::open("");
-
-    //println!("{commits:#?}");
+    let listener = TcpListener::bind("localhost:4000").await?;
+    axum::serve(listener, routes::setup()).await?;
 
     Ok(())
 }
