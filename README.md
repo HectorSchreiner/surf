@@ -19,12 +19,29 @@
 
 ---
 
-# How to run
-Make sure you have `rust` installed on your machine.
-You can run the program with: (undskyld sebastian)
+# Getting Started
+
+
+## For Development
+
+1. Start Postgres using Docker Compose:
+
 ```bash
-cargo run
+docker compose -f compose.dev.yaml up -D 
 ```
+
+2. Start the backend (on port 4000):
+   
+```bash
+cd backend && cargo watch -x run 
+```
+
+3. Start the frontend (on port 3000):
+
+```bash
+cd frontend && pnpm run dev
+```
+
 
 # 🔥 Features
 

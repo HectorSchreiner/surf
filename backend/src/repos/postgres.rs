@@ -5,7 +5,7 @@ use ::sqlx::postgres::PgPool;
 use ::sqlx::prelude::*;
 use ::uuid::Uuid;
 
-pub use crate::domains::*;
+pub use crate::domains::vulnerabilities::*;
 
 pub struct Postgres {
     pool: PgPool,
@@ -60,7 +60,7 @@ impl VulnerabilityRepo for Postgres {
 
     async fn new_vulnerability(
         &self,
-        r: NewVulnerability,
+        _r: NewVulnerability,
     ) -> Result<Vulnerability, NewVulnerabilityError> {
         todo!()
     }

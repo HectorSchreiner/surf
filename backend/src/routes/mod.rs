@@ -27,7 +27,7 @@ async fn docs() -> Html<String> {
 
 mod vulnerabilities {
     use super::*;
-    use crate::domains::Vulnerability;
+    use crate::domains::vulnerabilities::Vulnerability;
 
     #[cfg_attr(feature = "docs", utoipa::path(
         get,
