@@ -26,7 +26,11 @@ impl Postgres {
     async fn insert_user(&self, m: UserModel) -> sqlx::Result<()> {
         let Self { pool } = self;
 
-        let sql = r#"INSERT INTO users (id, email, password, name, reset) VALUES ($1, $2, $3, $4, $5, $6)"#;
+        let sql = r#"
+            INSERT INTO users (id, email, password, name, reset)
+            VALUES ($1, $2, $3, $4, $5)
+        "#;
+
         let query = sqlx::query(sql)
             .bind(m.id)
             .bind(m.email)

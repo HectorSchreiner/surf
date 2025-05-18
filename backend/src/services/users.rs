@@ -35,7 +35,7 @@ impl UserService {
                 email: admin_email,
                 password: admin_password,
                 name: "admin".to_string(),
-                reset: false,
+                reset: true,
             };
 
             user_repo.new_user(new_user).await?;
