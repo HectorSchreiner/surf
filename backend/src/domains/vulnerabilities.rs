@@ -1,11 +1,11 @@
 use ::async_trait::async_trait;
 use ::chrono::{DateTime, Utc};
+use ::futures::Stream;
 use ::serde::{Deserialize, Serialize};
 use ::uuid::Uuid;
 
-pub mod users;
-
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "docs", derive(utoipa::ToSchema))]
 pub struct Vulnerability {
     pub id: Uuid,
@@ -21,6 +21,7 @@ pub enum ListVulnerabilitiesError {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "docs", derive(utoipa::ToSchema))]
 pub struct NewVulnerability {
     pub key: String,
@@ -44,6 +45,12 @@ pub trait VulnerabilityRepo {
     ) -> Result<Vulnerability, NewVulnerabilityError>;
 }
 
-// pub trait VulnerabilityFeed {
-//     async fn list_vulnerabilities(&self) ->
-// }
+#[derive(Debug, Clone)]
+pub enum VulnerabilityEvent {
+    Created(NewVulnerability),
+}
+
+#[async_trait]
+pub trait VulnerabilityFeed {
+    async fn listen(&self) -> Result<impl Stream<Item = VulnerabilityEvent> + 'static, ()>;
+}
