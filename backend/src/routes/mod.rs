@@ -1,13 +1,19 @@
 use ::axum::Router;
-use ::axum::response::Html;
+use ::axum::response::{Html, Json};
 use ::axum::routing::{get, post};
+use ::chrono::Utc;
 use ::http::StatusCode;
+use ::uuid::Uuid;
+
+mod users;
 
 pub fn setup() -> Router {
     let router = Router::new().route("/api/v1/vulnerabilities", get(vulnerabilities::list));
 
     #[cfg(feature = "docs")]
-    let router = router.route("/api", get(docs));
+    let router = router
+        .route("/api/schema", get(schema))
+        .route("/api", get(docs));
 
     router
 }
@@ -16,6 +22,13 @@ pub fn setup() -> Router {
 #[derive(utoipa::OpenApi)]
 #[openapi(paths(vulnerabilities::list))]
 struct ApiDocs;
+
+#[cfg(feature = "docs")]
+async fn schema() -> Json<utoipa::openapi::OpenApi> {
+    use ::utoipa::OpenApi;
+
+    Json(ApiDocs::openapi())
+}
 
 #[cfg(feature = "docs")]
 async fn docs() -> Html<String> {
@@ -34,9 +47,19 @@ mod vulnerabilities {
         path = "/api/v1/vulnerabilities",
         responses(
             (status = 200, description = "Successfully listed vulnerabilities", body = Vec<Vulnerability>),
+            (status = 500, description = "Failed to list vulnerabilities, because of an internal server error", body=String)
         ),
     ))]
-    pub async fn list() -> (StatusCode,) {
-        (StatusCode::OK,)
+    pub async fn list() -> (StatusCode, Json<Vec<Vulnerability>>) {
+        let vulnerabilities = vec![Vulnerability {
+            id: Uuid::new_v4(),
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            name: "skrt".to_string(),
+            description: "bob bob".to_string(),
+            key: "CVE-2025-0001".to_string(),
+        }];
+
+        (StatusCode::OK, Json(vulnerabilities))
     }
 }

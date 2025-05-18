@@ -5,8 +5,7 @@ use ::async_trait::async_trait;
 use ::tokio::task::JoinHandle;
 use ::tokio_stream::wrappers::BroadcastStream;
 
-use super::postgres::VulnerabilityEvent;
-use crate::domains::vulnerabilities::VulnerabilityFeed;
+use crate::domains::vulnerabilities::{VulnerabilityEvent, VulnerabilityFeed};
 
 pub struct Github {
     handle: JoinHandle<()>,

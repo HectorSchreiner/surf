@@ -5,6 +5,7 @@ use ::serde::{Deserialize, Serialize};
 use ::uuid::Uuid;
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "docs", derive(utoipa::ToSchema))]
 pub struct Vulnerability {
     pub id: Uuid,
@@ -20,6 +21,7 @@ pub enum ListVulnerabilitiesError {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "docs", derive(utoipa::ToSchema))]
 pub struct NewVulnerability {
     pub key: String,

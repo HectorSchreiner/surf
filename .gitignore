@@ -1,3 +1,4 @@
-target/
-data/
-node_modules/
+backend/target/
+
+frontend/node_modules/
+frontend/src/schema.d.ts

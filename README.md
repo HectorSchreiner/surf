@@ -33,7 +33,7 @@ docker compose -f compose.dev.yaml up -D
 2. Start the backend (on port 4000):
    
 ```bash
-cd backend && cargo watch -x run 
+cd backend && cargo watch -x run --features=docs
 ```
 
 3. Start the frontend (on port 3000):
