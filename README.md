@@ -27,7 +27,7 @@
 1. Start Postgres using Docker Compose:
 
 ```bash
-docker compose -f compose.dev.yaml up -D 
+docker compose -f compose.dev.yaml up -d
 ```
 
 2. Start the backend (on port 4000):
@@ -42,6 +42,11 @@ cd backend && cargo watch -x run --features=docs
 cd frontend && pnpm run dev
 ```
 
+```powershell
+docker compose -f compose.dev.yaml up -d
+cd backend; cargo watch -x run --features=docs
+cd frontend; pnpm run dev
+```
 
 # 🔥 Features
 

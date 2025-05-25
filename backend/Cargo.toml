@@ -8,7 +8,7 @@ license = "MIT"
 [dependencies]
 anyhow = { version = "1.0.97" }
 async-trait = "0.1.88"
-axum = { version = "0.8.3" }
+axum = { version = "0.8.3", features = ["macros"] }
 backon = { version = "1.5.0" }
 bon = { version = "3.6.3" }
 chrono = { version = "0.4.40", features = ["serde"] }
