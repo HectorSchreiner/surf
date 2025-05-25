@@ -5,16 +5,8 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use tokio::sync::Mutex;
 use std::sync::Arc;
+use crate::domains::alerts::*;
 
-#[derive(Serialize, Clone)]
-#[derive(utoipa::ToSchema)]
-pub struct Alert {
-    id: Uuid,
-    created_at: DateTime<Utc>,
-    name: String,
-    message: String,
-    severity: Severity
-}
 
 #[axum::debug_handler]
 #[cfg_attr(feature = "docs", utoipa::path(
@@ -54,20 +46,3 @@ pub async fn list_alerts(State(alert_db): State<AlertDB>) -> (StatusCode, Json<V
     (StatusCode::OK, Json::from(alerts))
 }
 
-#[derive(Serialize, Deserialize, Clone)]
-#[derive(utoipa::ToSchema)]
-pub struct CreateAlert {
-    name: String,
-    message: String,
-    severity: Severity
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-#[serde(rename_all="camelCase")]
-#[derive(utoipa::ToSchema)]
-pub enum Severity {
-    Low,
-    Medium,
-    High, 
-    Critical,
-}

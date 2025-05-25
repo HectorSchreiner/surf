@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use crate::routes::alerts::{create_alert, list_alerts};
-use alerts::Alert;
+use crate::domains::alerts::Alert;
 use ::axum::Router;
 use ::axum::response::{Html, Json};
 use ::axum::routing::{get, post};
