@@ -1,0 +1,10 @@
+[database]
+url = "postgres://localhost:5432/main"
+user = "admin"
+password = "password"
+
+[security]
+secret = "my-awesome-jwt-secret-that-is-extremely-hidden"
+
+[services]
+github = { access-token = "" }

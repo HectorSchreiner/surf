@@ -26,7 +26,7 @@ pub struct UserService {
 
 impl UserService {
     pub async fn new(user_repo: impl UserRepo, config: SecurityConfig) -> anyhow::Result<Self> {
-        let SecurityConfig { admin_email, admin_password } = config;
+        let SecurityConfig { admin_email, admin_password, .. } = config;
 
         let users = user_repo.list_users().await?;
         let admin_user = users.iter().find(|user| user.email == admin_email);
