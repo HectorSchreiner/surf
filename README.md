@@ -42,6 +42,8 @@ cd backend && cargo watch -x run --features=docs
 cd frontend && pnpm start
 ```
 
+Requests to `localhost:3000/api` are proxied to `localhost:4000/api`
+
 ```powershell
 docker compose -f compose.dev.yaml up -d
 cd backend; cargo watch -x run --features=docs
