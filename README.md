@@ -39,7 +39,7 @@ cd backend && cargo watch -x run --features=docs
 3. Start the frontend (on port 3000):
 
 ```bash
-cd frontend && pnpm run dev
+cd frontend && pnpm start
 ```
 
 ```powershell
