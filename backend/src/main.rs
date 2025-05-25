@@ -1,9 +1,16 @@
+use std::collections::{HashMap, HashSet};
+
+use ::chrono::{DateTime, Utc};
+use ::serde::Deserialize;
+use ::serde_json::Value as JsonValue;
+use ::tokio::fs;
 use ::tokio::net::TcpListener;
-use repos::Github;
-use services::users::UserService;
+use ::url::Url;
+use chrono::NaiveDateTime;
 
 use crate::config::Config;
-use crate::repos::Postgres;
+use crate::repos::{Github, Postgres};
+use crate::services::users::UserService;
 
 mod config;
 mod domains;
@@ -23,13 +30,80 @@ async fn main() -> anyhow::Result<()> {
     let postgres = Postgres::connect().await?;
     tracing::info!("successfully connected to postgres");
 
-    let github = Github::new(config.services.github).await.unwrap();
+    // let github = Github::new(config.services.github).await.unwrap();
 
-    let user_service = UserService::new(postgres.clone(), config.security).await?;
+    let contents = fs::read("/home/sebberas/Desktop/surf/CVE-2019-1002100.json")
+        .await
+        .unwrap();
+
+    let record = serde_json::from_slice::<CveRecord>(&contents).unwrap();
+
+    // let user_service = UserService::new(postgres.clone(), config.security).await?;
 
     let listener = TcpListener::bind("localhost:4000").await?;
     println!("listening on port 4000");
     axum::serve(listener, routes::setup()).await?;
 
     Ok(())
+}
+
+#[derive(Debug, Deserialize, PartialEq, Eq)]
+#[serde(untagged)]
+pub enum CveTimestamp {
+    With(DateTime<Utc>),
+    Without(NaiveDateTime),
+}
+
+impl CveTimestamp {
+    pub fn and_utc(&self) -> DateTime<Utc> {
+        match self {
+            Self::With(ts) => *ts,
+            Self::Without(ts) => ts.and_utc(),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct CveMeta {
+    #[serde(rename = "cveId")]
+    pub id: String,
+    pub state: String,
+    #[serde(rename = "dateReserved")]
+    pub reserved_at: CveTimestamp,
+    #[serde(rename = "datePublished")]
+    pub published_at: CveTimestamp,
+    #[serde(rename = "dateUpdated")]
+    pub updated_at: CveTimestamp,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CveReference {
+    pub url: Url,
+    #[serde(default)]
+    pub tags: Vec<String>,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CveCnaContainer {
+    pub references: Vec<CveReference>,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub enum CveContainer {
+    Cna(CveCnaContainer),
+    Adp {},
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CveRecord {
+    pub data_type: String,
+    pub data_version: String,
+    #[serde(rename = "cveMetadata")]
+    pub metadata: CveMeta,
+    pub containers: HashMap<String, JsonValue>,
 }
