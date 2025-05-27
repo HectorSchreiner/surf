@@ -20,10 +20,10 @@ use crate::domains::alerts::*;
 ))]
 pub async fn create_alert(State(alert_db): State<AlertDB>, Json(payload): Json<CreateAlert>) -> (StatusCode, Json<Alert>) {
     let alert = Alert {
-        name: payload.name,
+        name: AlertName::new(payload.name).unwrap(),
         id: Uuid::new_v4(),
         created_at: Utc::now(),
-        message: payload.message, 
+        message: AlertMessage::new(payload.message).unwrap(), 
         severity: payload.severity
     };
     alert_db.lock().await.push(alert.clone());

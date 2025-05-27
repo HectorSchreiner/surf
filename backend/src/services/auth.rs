@@ -27,7 +27,7 @@ impl IdentityService {
         let SecurityConfig { admin_email, admin_password, .. } = config;
 
         let users = user_repo.list_users().await?;
-        let admin_user = users.iter().find(|user| &user.email == admin_email);
+        let admin_user = users.iter().find(|user| &user.email.0 == admin_email);
         if users.is_empty() && admin_user.is_none() {
             let new_user = NewUser {
                 email: admin_email.clone(),
