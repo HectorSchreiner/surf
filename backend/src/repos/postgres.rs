@@ -6,10 +6,7 @@ use ::sqlx::prelude::*;
 use ::uuid::Uuid;
 use secrecy::ExposeSecret;
 
-use crate::domains::alerts::Alert;
-use crate::domains::alerts::AlertMessage;
-use crate::domains::alerts::AlertName;
-use crate::domains::alerts::Severity;
+use crate::domains::alerts::*;
 use crate::domains::users::*;
 use crate::domains::vulnerabilities::*;
 
@@ -197,7 +194,7 @@ impl VulnerabilityRepo for Postgres {
     }
 }
 
-#[derive(FromRow)]
+#[derive(Debug, Clone, PartialEq, Eq, FromRow)]
 struct AlertModel {
     pub id: Uuid,
     pub created_at: DateTime<Utc>,
@@ -206,16 +203,29 @@ struct AlertModel {
     pub severity: Severity,
 }
 
-impl TryFrom<AlertModel> for Alert {
-    type Error = anyhow::Error;
+impl Into<Alert> for AlertModel {
+    fn into(self) -> Alert {
+        Alert {
+            id: self.id,
+            created_at: self.created_at,
+            name: AlertName::new(self.name).unwrap(),
+            message: AlertMessage::new(self.message).unwrap(),
+            severity: self.severity,
+        }
+    }
+}
 
-    fn try_from(model: AlertModel) -> Result<Self, Self::Error> {
-        Ok(Alert {
-            id: model.id,
-            created_at: model.created_at,
-            name: AlertName::new(model.name)?,
-            message: AlertMessage::new(model.message)?,
-            severity: model.severity,
-        })
+#[async_trait]
+impl AlertRepo for Postgres {
+    async fn list_alerts(&self) -> Result<Vec<Alert>, ListAlertsError> {
+        let Self { pool } = &self;
+
+        let sql = r#"SELECT * FROM alerts"#;
+        let query = sqlx::query_as::<_, AlertModel>(sql);
+
+        match query.fetch_all(pool).await {
+            Ok(models) => Ok(models.into_iter().map(Into::into).collect()),
+            Err(err) => Err(ListAlertsError::Other(err.into())),
+        }
     }
 }

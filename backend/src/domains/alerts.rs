@@ -1,4 +1,6 @@
 use ::std::ops::Deref;
+use async_trait::async_trait;
+use ::sqlx::*;
 use ::thiserror::Error;
 use ::chrono::{DateTime, Utc};
 use ::serde::{Deserialize, Serialize};
@@ -25,7 +27,8 @@ pub struct CreateAlert {
     pub severity: Severity
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Eq, sqlx::Type)]
+#[sqlx(type_name = "severity", rename_all = "lowercase")]
 #[serde(rename_all="camelCase")]
 #[derive(utoipa::ToSchema)]
 pub enum Severity {
@@ -95,5 +98,29 @@ impl ValidateLength for AlertMessage {
     const MAX_LEN: usize = 9999;
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "docs", derive(utoipa::ToSchema))]
+pub struct NewAlert {
+    pub id: Uuid,
+    pub created_at: DateTime<Utc>,
+    pub name: String,
+    pub message: String,
+    pub severity: Severity
+}
+
+pub enum ListAlertsError {
+    Other(anyhow::Error)
+}
+
+pub enum NewAlertError {
+    Other(anyhow::Error)
+}
+
+#[async_trait]
+pub trait AlertRepo {
+    /// Lists all alerts in the repository
+    async fn list_alerts(&self) -> Result<Vec<Alert>, ListAlertsError>;
+}
 
 
