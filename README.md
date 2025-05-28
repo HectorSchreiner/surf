@@ -17,6 +17,8 @@ Surf is a security tool, that allows you to scan your internal surface for the l
 
 * [Getting Started](#getting-started)
 * [For Development](#for-development)
+* [Features](#features)
+* [License](#license)
 
 ## Getting Started
 
@@ -44,13 +46,7 @@ cd backend; cargo watch -x run --features=docs;
 cd frontend; pnpm run dev
 ```
 
-# 🔥 Features
+## Features
 
-- **CVE Management Tool**  
-    CVE management tool: For fast indexing an monitoring of the latest security vulnerabilities.
-
-
-
-# 📄 License
-
+## License
 This project is licensed under the MIT [LICENSE](./LICENSE).
