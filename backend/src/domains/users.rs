@@ -4,30 +4,67 @@ use ::chrono::{DateTime, Utc};
 use ::secrecy::SecretString;
 use ::serde::{Deserialize, Serialize};
 use ::thiserror::Error;
+use ::utoipa::ToSchema;
 use ::uuid::Uuid;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[cfg_attr(feature = "docs", derive(utoipa::ToSchema))]
-pub struct UserId(Uuid);
+pub struct UserId(pub Uuid);
 
 impl From<Uuid> for UserId {
-    fn from(value: Uuid) -> Self {
-        Self(value)
-    }
+    fn from(value: Uuid) -> Self { Self(value) }
 }
 
 impl From<UserId> for Uuid {
-    fn from(value: UserId) -> Self {
-        value.0
+    fn from(value: UserId) -> Self { value.0 }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Eq)]
+#[cfg_attr(feature = "docs", derive(utoipa::ToSchema))]
+pub struct EmailAddress(pub String);
+
+#[derive(Error, Debug, Clone, PartialEq, Serialize, Deserialize, Eq)]
+#[error("{0} is not a valid email address")]
+pub struct EmailAddressError(pub String);
+
+impl EmailAddress {
+    pub fn new(raw_email: &str) -> Result<Self, EmailAddressError> {
+        todo!(); // check if valid, else return EmailAdressError
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Eq)]
+#[cfg_attr(feature = "docs", derive(utoipa::ToSchema))]
+pub struct UserName(pub String);
+
+#[derive(Error, Debug, Clone, PartialEq, Serialize, Deserialize, Eq)]
+#[error("{0} is not a valid username")]
+pub struct UserNameError(pub String);
+impl UserName {
+    pub fn new(raw_username: &str) -> Result<Self, UserNameError> {
+        todo!();
+    } 
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Eq)]
+#[cfg_attr(feature = "docs", derive(utoipa::ToSchema))]
+pub struct Password(pub String);
+
+#[derive(Error, Debug, Clone, PartialEq, Serialize, Deserialize, Eq)]
+#[error("{0} is not a valid password")]
+pub struct PasswordError(pub String);
+impl Password {
+    pub fn new(raw_password: &str) -> Result<Self, PasswordError> {
+        todo!(); // password logic
+    } 
 }
 
 #[derive(Debug, Clone)]
 pub struct User {
     pub id: UserId,
-    pub email: String,
-    pub password: SecretString,
-    pub name: String,
+    pub email: EmailAddress,
+    pub password: Password,
+    pub name: UserName,
     pub reset: bool,
 }
 

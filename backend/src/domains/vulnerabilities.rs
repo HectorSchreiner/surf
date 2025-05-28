@@ -41,7 +41,7 @@ pub trait VulnerabilityRepo {
     /// Creates a new vulnerability in the repository
     async fn new_vulnerability(
         &self,
-        r: NewVulnerability,
+        new_vulnerability: NewVulnerability,
     ) -> Result<Vulnerability, NewVulnerabilityError>;
 }
 

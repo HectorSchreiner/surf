@@ -4,7 +4,9 @@ use ::sqlx::migrate;
 use ::sqlx::postgres::PgPool;
 use ::sqlx::prelude::*;
 use ::uuid::Uuid;
+use secrecy::ExposeSecret;
 
+use crate::domains::alerts::*;
 use crate::domains::users::*;
 use crate::domains::vulnerabilities::*;
 
@@ -52,15 +54,13 @@ struct UserModel {
 }
 
 impl From<User> for UserModel {
-    fn from(value: User) -> Self {
-        use ::secrecy::ExposeSecret;
-
+    fn from(user: User) -> Self {
         Self {
-            id: value.id.into(),
-            email: value.email,
-            password: value.password.expose_secret().to_string(),
-            name: value.name,
-            reset: value.reset,
+            id: user.id.into(),
+            email: user.email.0.clone(),
+            password: user.password.0.clone(),
+            name: user.name.0.clone(),
+            reset: user.reset,
         }
     }
 }
@@ -68,13 +68,13 @@ impl From<User> for UserModel {
 impl TryFrom<UserModel> for User {
     type Error = anyhow::Error;
 
-    fn try_from(value: UserModel) -> Result<Self, Self::Error> {
-        Ok(Self {
-            id: value.id.into(),
-            email: value.email,
-            password: value.password.into(),
-            name: value.name,
-            reset: value.reset,
+    fn try_from(model: UserModel) -> Result<Self, Self::Error> {
+        Ok(User {
+            id: UserId::from(model.id),
+            email: EmailAddress::new(&model.email)?,
+            password: Password::new(&model.password)?,
+            name: UserName::new(&model.name)?,
+            reset: model.reset,
         })
     }
 }
@@ -129,9 +129,9 @@ impl UserRepo for Postgres {
     async fn new_user(&self, r: NewUser) -> Result<User, NewUserError> {
         let user = User {
             id: UserId::from(Uuid::new_v4()),
-            email: r.email,
-            password: r.password,
-            name: r.name,
+            email: EmailAddress(r.email),
+            password: Password(String::from(r.password.expose_secret())),
+            name: UserName(r.name),
             reset: r.reset,
         };
 
@@ -191,5 +191,41 @@ impl VulnerabilityRepo for Postgres {
         _r: NewVulnerability,
     ) -> Result<Vulnerability, NewVulnerabilityError> {
         todo!()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, FromRow)]
+struct AlertModel {
+    pub id: Uuid,
+    pub created_at: DateTime<Utc>,
+    pub name: String,
+    pub message: String,
+    pub severity: Severity,
+}
+
+impl Into<Alert> for AlertModel {
+    fn into(self) -> Alert {
+        Alert {
+            id: self.id,
+            created_at: self.created_at,
+            name: AlertName::new(self.name).unwrap(),
+            message: AlertMessage::new(self.message).unwrap(),
+            severity: self.severity,
+        }
+    }
+}
+
+#[async_trait]
+impl AlertRepo for Postgres {
+    async fn list_alerts(&self) -> Result<Vec<Alert>, ListAlertsError> {
+        let Self { pool } = &self;
+
+        let sql = r#"SELECT * FROM alerts"#;
+        let query = sqlx::query_as::<_, AlertModel>(sql);
+
+        match query.fetch_all(pool).await {
+            Ok(models) => Ok(models.into_iter().map(Into::into).collect()),
+            Err(err) => Err(ListAlertsError::Other(err.into())),
+        }
     }
 }
