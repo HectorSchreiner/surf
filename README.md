@@ -11,42 +11,36 @@
     <img src="https://img.shields.io/github/contributors/HectorSchreiner/surf.svg" alt="Contributors">
 </p>
 
----
+<h2 align="center">A blazingly fast and safe attack surface management application.</h2>
 
-# 🚀 About
+Surf is a security tool, that allows you to scan your internal surface for the latest vulnerabilities, and give you updates whenever one is found. 
 
-**Surf** is a blazingly fast and safe **attack surface management application**.
+* [Getting Started](#getting-started)
+* [For Development](#for-development)
 
----
-
-# Getting Started
+## Getting Started
 
 
 ## For Development
+Make sure you have installed `Docker, Rust & npm` on your machine
 
 1. Start Postgres using Docker Compose:
-
-```bash
-docker compose -f compose.dev.yaml up -d
-```
-
 2. Start the backend (on port 4000):
-   
-```bash
-cd backend && cargo watch -x run --features=docs
-```
-
 3. Start the frontend (on port 3000):
-
-```bash
-cd frontend && pnpm start
-```
 
 Requests to `localhost:3000/api` are proxied to `localhost:4000/api`
 
+**Linux**
+```bash
+docker compose -f compose.dev.yaml up -d
+cd backend && cargo watch -x run --features=docs
+cd frontend && pnpm start
+```
+
+**Windows**
 ```powershell
 docker compose -f compose.dev.yaml up -d
-cd backend; cargo watch -x run --features=docs
+cd backend; cargo watch -x run --features=docs;
 cd frontend; pnpm run dev
 ```
 
