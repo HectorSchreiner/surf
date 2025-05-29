@@ -1,11 +1,12 @@
 use ::async_trait::async_trait;
 use ::chrono::{DateTime, Utc};
+use ::secrecy::SecretString;
 use ::sqlx::migrate;
-use ::sqlx::postgres::PgPool;
+use ::sqlx::postgres::{PgConnectOptions, PgPool};
 use ::sqlx::prelude::*;
 use ::uuid::Uuid;
-use secrecy::ExposeSecret;
 
+use crate::config::DatabaseConfig;
 use crate::domains::alerts::*;
 use crate::domains::users::*;
 use crate::domains::vulnerabilities::*;
@@ -16,8 +17,19 @@ pub struct Postgres {
 }
 
 impl Postgres {
-    pub async fn connect() -> anyhow::Result<Self> {
-        let pool = PgPool::connect("postgresql://user:password@localhost:5432/main").await?;
+    pub async fn connect(config: DatabaseConfig) -> anyhow::Result<Self> {
+        use ::secrecy::ExposeSecret;
+
+        let DatabaseConfig { url, user, password } = config;
+
+        let options = PgConnectOptions::new()
+            .host(url.host())
+            .port(url.port())
+            .database(url.database())
+            .username(&user)
+            .password(password.expose_secret());
+
+        let pool = PgPool::connect_with(options).await?;
 
         migrate!("./migrations").run(&pool).await?;
 
@@ -55,11 +67,13 @@ struct UserModel {
 
 impl From<User> for UserModel {
     fn from(user: User) -> Self {
+        use secrecy::ExposeSecret;
+
         Self {
             id: user.id.into(),
-            email: user.email.0.clone(),
-            password: user.password.0.clone(),
-            name: user.name.0.clone(),
+            email: user.email.into(),
+            password: user.password.expose_secret().to_string(),
+            name: user.name,
             reset: user.reset,
         }
     }
@@ -71,9 +85,9 @@ impl TryFrom<UserModel> for User {
     fn try_from(model: UserModel) -> Result<Self, Self::Error> {
         Ok(User {
             id: UserId::from(model.id),
-            email: EmailAddress::new(&model.email)?,
-            password: Password::new(&model.password)?,
-            name: UserName::new(&model.name)?,
+            email: EmailAddress::parse(&model.email)?,
+            password: SecretString::from(model.password),
+            name: model.name,
             reset: model.reset,
         })
     }
@@ -129,9 +143,9 @@ impl UserRepo for Postgres {
     async fn new_user(&self, r: NewUser) -> Result<User, NewUserError> {
         let user = User {
             id: UserId::from(Uuid::new_v4()),
-            email: EmailAddress(r.email),
-            password: Password(String::from(r.password.expose_secret())),
-            name: UserName(r.name),
+            email: r.email,
+            password: r.password,
+            name: r.name,
             reset: r.reset,
         };
 
@@ -200,18 +214,20 @@ struct AlertModel {
     pub created_at: DateTime<Utc>,
     pub name: String,
     pub message: String,
-    pub severity: Severity,
+    pub severity: AlertSeverity,
 }
 
-impl Into<Alert> for AlertModel {
-    fn into(self) -> Alert {
-        Alert {
-            id: self.id,
-            created_at: self.created_at,
-            name: AlertName::new(self.name).unwrap(),
-            message: AlertMessage::new(self.message).unwrap(),
-            severity: self.severity,
-        }
+impl TryFrom<AlertModel> for Alert {
+    type Error = anyhow::Error;
+
+    fn try_from(value: AlertModel) -> Result<Self, Self::Error> {
+        Ok(Self {
+            id: value.id.into(),
+            created_at: value.created_at,
+            name: AlertName::parse(value.name)?,
+            message: AlertMessage::parse(value.message)?,
+            severity: value.severity,
+        })
     }
 }
 
@@ -224,7 +240,10 @@ impl AlertRepo for Postgres {
         let query = sqlx::query_as::<_, AlertModel>(sql);
 
         match query.fetch_all(pool).await {
-            Ok(models) => Ok(models.into_iter().map(Into::into).collect()),
+            Ok(models) => {
+                let alerts = models.into_iter().map(TryInto::try_into);
+                Ok(alerts.collect::<Result<_, _>>().unwrap())
+            }
             Err(err) => Err(ListAlertsError::Other(err.into())),
         }
     }

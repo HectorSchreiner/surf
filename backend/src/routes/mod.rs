@@ -1,13 +1,14 @@
 use std::sync::Arc;
-use crate::routes::alerts::{create_alert, list_alerts};
-use crate::domains::alerts::Alert;
+
 use ::axum::Router;
+use ::axum::http::StatusCode;
 use ::axum::response::{Html, Json};
 use ::axum::routing::{get, post};
 use ::chrono::Utc;
-use ::http::StatusCode;
-use tokio::sync::Mutex;
+use ::tokio::sync::Mutex;
 use ::uuid::Uuid;
+
+use crate::routes::alerts::{create_alert, list_alerts};
 
 mod alerts;
 mod users;

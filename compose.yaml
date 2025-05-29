@@ -1,0 +1,55 @@
+services:
+  postgres:
+    image: postgres:17.5-alpine3.21
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?error}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?error}
+      POSTGRES_DB: db
+    volumes:
+      - ./data/postgres-prod:/var/lib/postgresql/data
+    networks:
+      - database
+
+  # The backend is the only service that is able to reach the database
+  backend:
+    build: ./backend
+    depends_on:
+      - postgres
+    command: "--config-file=/config.toml"
+    environment:
+      DATABASE.URL: postgres://postgres:5432/db
+      DATABASE.USER: ${POSTGRES_USER:?error}
+      DATABASE.PASSWORD: ${POSTGRES_PASSWORD:?error}
+      SECURITY.SECRET: ${SURF_SECRET:?error}
+      SERVICES.GITHUB.ACCESS_TOKEN: ${GITHUB_ACCESS_TOKEN:?error}
+    volumes:
+      - ./config/config.toml:/config.toml:ro
+    networks:
+      - database
+      - backend
+  
+  # The frontend is unable to reach the backend, because of the network setup
+  frontend:
+    build: ./frontend
+    networks:
+      - frontend
+
+  # The proxy can't reach the database, because of it isn't part of the database network
+  proxy:
+    image: nginx:1.27.5-alpine3.21
+    depends_on:
+      - backend
+      - frontend
+    ports:
+      - 80:80/tcp
+      - 443:443/tcp
+    volumes:
+      - ./config/nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - backend
+      - frontend
+
+networks:
+  database:
+  backend:
+  frontend:

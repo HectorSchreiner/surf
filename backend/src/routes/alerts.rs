@@ -1,12 +1,12 @@
-use axum::{extract::State, Json};
-use chrono::{DateTime, Utc};
-use http::StatusCode;
-use serde::{Deserialize, Serialize};
-use uuid::Uuid;
-use tokio::sync::Mutex;
 use std::sync::Arc;
-use crate::domains::alerts::*;
 
+use ::axum::Json;
+use ::axum::extract::State;
+use ::axum::http::StatusCode;
+use ::chrono::Utc;
+use ::tokio::sync::Mutex;
+
+use crate::domains::alerts::*;
 
 #[axum::debug_handler]
 #[cfg_attr(feature = "docs", utoipa::path(
@@ -18,13 +18,16 @@ use crate::domains::alerts::*;
         (status = 500, description = "Failed to create alert, because of an internal server error", body=String)
     ),
 ))]
-pub async fn create_alert(State(alert_db): State<AlertDB>, Json(payload): Json<CreateAlert>) -> (StatusCode, Json<Alert>) {
+pub async fn create_alert(
+    State(alert_db): State<AlertDB>,
+    Json(payload): Json<CreateAlert>,
+) -> (StatusCode, Json<Alert>) {
     let alert = Alert {
-        name: AlertName::new(payload.name).unwrap(),
-        id: Uuid::new_v4(),
+        id: AlertId::new(),
         created_at: Utc::now(),
-        message: AlertMessage::new(payload.message).unwrap(), 
-        severity: payload.severity
+        name: payload.name,
+        message: payload.message,
+        severity: payload.severity,
     };
     alert_db.lock().await.push(alert.clone());
     (StatusCode::CREATED, Json::from(alert))
@@ -45,4 +48,3 @@ pub async fn list_alerts(State(alert_db): State<AlertDB>) -> (StatusCode, Json<V
     let alerts = alert_db.lock().await.clone();
     (StatusCode::OK, Json::from(alerts))
 }
-

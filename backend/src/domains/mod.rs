@@ -1,8 +1,8 @@
 use thiserror::Error;
 
+pub mod alerts;
 pub mod users;
 pub mod vulnerabilities;
-pub mod alerts;
 
 // pub trait VulnerabilityFeed {
 //     async fn list_vulnerabilities(&self) ->
@@ -18,13 +18,12 @@ pub trait StringSanitize {
 
 impl StringNormalize for String {
     /// Returns a normalized version of the string.
-    /// 
+    ///
     /// - Trims leading/trailing whitespace
     /// - Collapses consecutive whitespace into single spaces
     /// - Converts all characters to lowercase
     fn normalize(&self) -> String {
-        self
-            .trim()
+        self.trim()
             .split_whitespace()
             .collect::<Vec<_>>()
             .join(" ")
@@ -43,19 +42,20 @@ impl StringSanitize for String {
 #[derive(Error, Debug, Clone, PartialEq, Eq)]
 #[error("{0}: is not within the size constraints")]
 pub struct ValidationError(usize);
+
 pub trait ValidateLength {
     /// Minimum allowed length (inclusive)
     const MIN_LEN: usize;
     /// Maximum allowed length (inclusive)
     const MAX_LEN: usize;
-    
+
     /// Checks if the string length is between `MIN_LEN` & `MAX_LEN`
     /// Returns a `Err(ValidationError(len))` if the string len is outide the range.
     fn validate_length(s: &str) -> Result<&str, ValidationError> {
         let len = s.chars().count();
         match (Self::MIN_LEN..=Self::MAX_LEN).contains(&len) {
             true => Ok(s),
-            false => Err(ValidationError(len))
+            false => Err(ValidationError(len)),
         }
     }
 }
