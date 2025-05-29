@@ -154,23 +154,46 @@ pub struct VulnerabilityModel {
     pub id: Uuid,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    pub key: String,
+    pub reserved_at: Option<DateTime<Utc>>,
+    pub published_at: Option<DateTime<Utc>>,
     pub name: String,
     pub description: String,
-    pub key: String,
 }
 
-impl Into<Vulnerability> for VulnerabilityModel {
-    fn into(self) -> Vulnerability {
-        Vulnerability {
-            id: self.id,
-            created_at: self.created_at,
-            updated_at: self.updated_at,
-            name: self.name,
-            description: self.description,
-            key: self.key,
+impl From<Vulnerability> for VulnerabilityModel {
+    fn from(value: Vulnerability) -> Self {
+        VulnerabilityModel {
+            id: value.id.into(),
+            created_at: value.created_at,
+            updated_at: value.updated_at,
+            key: value.key,
+            reserved_at: value.reserved_at,
+            published_at: value.published_at,
+            name: value.name,
+            description: value.description,
         }
     }
 }
+
+impl TryFrom<VulnerabilityModel> for Vulnerability {
+    type Error = anyhow::Error;
+
+    fn try_from(value: VulnerabilityModel) -> Result<Self, Self::Error> {
+        Ok(Self {
+            id: VulnerabilityId::from(value.id),
+            created_at: value.created_at,
+            updated_at: value.updated_at,
+            key: value.key,
+            reserved_at: value.reserved_at,
+            published_at: value.published_at,
+            name: value.name,
+            description: value.description,
+        })
+    }
+}
+
+type NewVulnerabilityResult = Result<Vulnerability, NewVulnerabilityError>;
 
 #[async_trait]
 impl VulnerabilityRepo for Postgres {
@@ -181,15 +204,39 @@ impl VulnerabilityRepo for Postgres {
         let query = sqlx::query_as::<_, VulnerabilityModel>(sql);
 
         match query.fetch_all(pool).await {
-            Ok(models) => Ok(models.into_iter().map(Into::into).collect()),
+            Ok(models) => {
+                let results = models.into_iter().map(TryFrom::try_from);
+                Ok(results.collect::<Result<_, _>>().unwrap())
+            }
             Err(err) => Err(ListVulnerabilitiesError::Other(err.into())),
         }
     }
 
-    async fn new_vulnerability(
-        &self,
-        _r: NewVulnerability,
-    ) -> Result<Vulnerability, NewVulnerabilityError> {
-        todo!()
+    #[tracing::instrument(skip(self))]
+    async fn new_vulnerability(&self, args: NewVulnerability) -> NewVulnerabilityResult {
+        let Self { pool } = self;
+
+        let vulnerability = Vulnerability::new(args);
+        let model: VulnerabilityModel = vulnerability.clone().into();
+
+        let sql = r#"
+            INSERT INTO vulnerabilities
+            VALUES (id, created_at, updated_at, key, reserved_at, published_at, name, description)
+        "#;
+
+        let query = sqlx::query(sql)
+            .bind(model.id)
+            .bind(model.created_at)
+            .bind(model.updated_at)
+            .bind(model.key)
+            .bind(model.reserved_at)
+            .bind(model.published_at)
+            .bind(model.name)
+            .bind(model.description);
+
+        match query.execute(pool).await {
+            Ok(_) => Ok(vulnerability),
+            Err(err) => Err(NewVulnerabilityError::Other(err.into())),
+        }
     }
 }

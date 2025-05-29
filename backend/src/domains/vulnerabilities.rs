@@ -5,15 +5,55 @@ use ::serde::{Deserialize, Serialize};
 use ::uuid::Uuid;
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[cfg_attr(feature = "docs", derive(utoipa::ToSchema))]
+pub struct VulnerabilityId(Uuid);
+
+impl VulnerabilityId {
+    pub fn new() -> Self {
+        Self(Uuid::new_v4())
+    }
+}
+
+impl From<Uuid> for VulnerabilityId {
+    fn from(value: Uuid) -> Self {
+        Self(value)
+    }
+}
+
+impl Into<Uuid> for VulnerabilityId {
+    fn into(self) -> Uuid {
+        self.0
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "docs", derive(utoipa::ToSchema))]
 pub struct Vulnerability {
-    pub id: Uuid,
+    pub id: VulnerabilityId,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    pub key: String,
+    pub reserved_at: Option<DateTime<Utc>>,
+    pub published_at: Option<DateTime<Utc>>,
     pub name: String,
     pub description: String,
-    pub key: String,
+}
+
+impl Vulnerability {
+    pub fn new(args: NewVulnerability) -> Self {
+        let now = Utc::now();
+        Self {
+            id: VulnerabilityId::new(),
+            created_at: now,
+            updated_at: now,
+            key: args.key,
+            reserved_at: args.reserved_at,
+            published_at: args.published_at,
+            name: args.name,
+            description: args.description,
+        }
+    }
 }
 
 pub enum ListVulnerabilitiesError {
@@ -25,7 +65,9 @@ pub enum ListVulnerabilitiesError {
 #[cfg_attr(feature = "docs", derive(utoipa::ToSchema))]
 pub struct NewVulnerability {
     pub key: String,
-    pub title: String,
+    pub reserved_at: Option<DateTime<Utc>>,
+    pub published_at: Option<DateTime<Utc>>,
+    pub name: String,
     pub description: String,
 }
 
