@@ -7,9 +7,7 @@ use ::serde::Deserialize;
 use ::tokio::fs;
 use ::tokio::task::JoinHandle;
 
-use crate::domains::vulnerabilities::{VulnerabilityEvent, VulnerabilityFeed};
-
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct GithubConfig {
     pub access_token: SecretString,
