@@ -3,7 +3,7 @@ use std::sync::Arc;
 use ::secrecy::SecretString;
 
 use crate::config::SecurityConfig;
-use crate::domains::users::{NewUser, UserId, UserRepo};
+use crate::domains::users::{EmailAddress, NewUser, UserId, UserRepo};
 
 pub struct Identity {
     pub id: UserId,
@@ -25,12 +25,13 @@ pub struct IdentityService {
 impl IdentityService {
     pub async fn setup(user_repo: impl UserRepo, config: &SecurityConfig) -> anyhow::Result<Self> {
         let SecurityConfig { admin_email, admin_password, .. } = config;
+        let admin_email = EmailAddress::parse(admin_email.clone()).unwrap();
 
         let users = user_repo.list_users().await?;
-        let admin_user = users.iter().find(|user| &user.email.0 == admin_email);
+        let admin_user = users.iter().find(|user| user.email == admin_email);
         if users.is_empty() && admin_user.is_none() {
             let new_user = NewUser {
-                email: admin_email.clone(),
+                email: admin_email,
                 password: admin_password.clone(),
                 name: "admin".to_string(),
                 reset: true,

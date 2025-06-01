@@ -10,13 +10,13 @@ use crate::domains::users::{EmailAddress, NewUser, UserId, UserRepo};
 #[cfg_attr(feature = "docs", derive(utoipa::ToSchema))]
 pub struct User {
     pub id: UserId,
-    pub email: String,
+    pub email: EmailAddress,
     pub name: String,
 }
 
 impl From<domains::users::User> for User {
     fn from(value: domains::users::User) -> Self {
-        Self { id: value.id, email: value.email.0, name: value.name.0 }
+        Self { id: value.id, email: value.email, name: value.name }
     }
 }
 
@@ -27,9 +27,10 @@ pub struct UserService {
 impl UserService {
     pub async fn new(user_repo: impl UserRepo, config: SecurityConfig) -> anyhow::Result<Self> {
         let SecurityConfig { admin_email, admin_password, .. } = config;
+        let admin_email = EmailAddress::parse(admin_email.clone()).unwrap();
 
         let users = user_repo.list_users().await?;
-        let admin_user = users.iter().find(|user| user.email == EmailAddress(admin_email.clone()));
+        let admin_user = users.iter().find(|user| user.email == admin_email);
         if admin_user.is_none() {
             let new_user = NewUser {
                 email: admin_email.clone(),
