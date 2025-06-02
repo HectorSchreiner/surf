@@ -5,6 +5,8 @@ use ::sqlx::migrate;
 use ::sqlx::postgres::{PgConnectOptions, PgPool};
 use ::sqlx::prelude::*;
 use ::uuid::Uuid;
+use anyhow::Error;
+use url::ParseError;
 
 use crate::config::DatabaseConfig;
 use crate::domains::alerts::*;
@@ -51,6 +53,25 @@ impl Postgres {
             .bind(m.password)
             .bind(m.name)
             .bind(m.reset);
+
+        query.execute(pool).await.map(|_| ())
+    }
+
+    #[tracing::instrument(skip(self, m))]
+    async fn insert_alert(&self, m: AlertModel) -> sqlx::Result<()> {
+        let Self { pool } = self;
+
+        let sql = r#"
+            INSERT INTO alerts (id, created_at, name, message, severity)
+            VALUES ($1, $2, $3, $4, $5)
+        "#;
+
+        let query = sqlx::query(sql)
+            .bind(m.id)
+            .bind(m.created_at)
+            .bind(m.name)
+            .bind(m.message)
+            .bind(m.severity);
 
         query.execute(pool).await.map(|_| ())
     }
@@ -231,6 +252,18 @@ impl TryFrom<AlertModel> for Alert {
     }
 }
 
+impl Into<AlertModel> for Alert {
+    fn into(self) -> AlertModel {
+        AlertModel {
+            id: self.id.to_uuid(),
+            created_at: self.created_at,
+            name: self.name.to_string(),
+            message: self.message.to_string(),
+            severity: self.severity,
+        }
+    }
+}
+
 #[async_trait]
 impl AlertRepo for Postgres {
     async fn list_alerts(&self) -> Result<Vec<Alert>, ListAlertsError> {
@@ -245,6 +278,34 @@ impl AlertRepo for Postgres {
                 Ok(alerts.collect::<Result<_, _>>().unwrap())
             }
             Err(err) => Err(ListAlertsError::Other(err.into())),
+        }
+    }
+
+    async fn new_alert(&self, new_alert: NewAlert) -> Result<Alert, NewAlertError> {
+        let name = AlertName::parse(new_alert.name)
+            .map_err(|e| NewAlertError::Other(anyhow::format_err!(e)))?;
+
+        let message = AlertMessage::parse(new_alert.message)
+            .map_err(|e| NewAlertError::Other(anyhow::format_err!(e)))?;
+
+        let alert = Alert {
+            id: AlertId::new(),
+            created_at: new_alert.created_at,
+            name: name,
+            message: message,
+            severity: new_alert.severity,
+        };
+
+        tracing::info!("inserting alert in database");
+        match self.insert_alert(alert.clone().into()).await {
+            Ok(_) => {
+                tracing::info!("successfully inserted alert in database");
+                Ok(alert)
+            }
+            Err(err) => {
+                tracing::error!("failed to insert alert in database");
+                Err(NewAlertError::Other(err.into()))
+            }
         }
     }
 }

@@ -7,6 +7,7 @@ use ::chrono::Utc;
 use ::tokio::sync::Mutex;
 
 use crate::domains::alerts::*;
+use crate::repos::postgres::{self, *};
 
 #[axum::debug_handler]
 #[cfg_attr(feature = "docs", utoipa::path(

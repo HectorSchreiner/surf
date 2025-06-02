@@ -1,3 +1,5 @@
+use std::process::Output;
+
 use ::async_trait::async_trait;
 use ::chrono::{DateTime, Utc};
 use ::derive_more::{AsRef, Deref};
@@ -17,6 +19,10 @@ pub struct AlertId(Uuid);
 impl AlertId {
     pub fn new() -> Self {
         Self(Uuid::new_v4())
+    }
+
+    pub fn to_uuid(&self) -> Uuid {
+        self.0
     }
 }
 
@@ -162,7 +168,8 @@ pub enum NewAlertError {
 }
 
 #[async_trait]
-pub trait AlertRepo {
+pub trait AlertRepo: Send + Sync {
     /// Lists all alerts in the repository
     async fn list_alerts(&self) -> Result<Vec<Alert>, ListAlertsError>;
+    async fn new_alert(&self, alert: NewAlert) -> Result<Alert, NewAlertError>;
 }

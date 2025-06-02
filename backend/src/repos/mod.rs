@@ -8,7 +8,7 @@ pub use self::postgres::Postgres;
 use crate::domains::users::*;
 
 mod github;
-mod postgres;
+pub mod postgres;
 
 #[derive(Debug, Clone, Default)]
 pub struct Mock {
