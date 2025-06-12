@@ -8,3 +8,7 @@ secret = "my-awesome-jwt-secret-that-is-extremely-hidden"
 
 [services]
 github = { access-token = "" }
+
+[serve]
+endpoint = "localhost:3000"
+

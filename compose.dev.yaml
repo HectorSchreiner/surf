@@ -2,7 +2,7 @@ services:
   postgres:
     image: postgres:17.5-alpine3.21
     environment:
-      POSTGRES_USER: user
+      POSTGRES_USER: admin
       POSTGRES_PASSWORD: password
       POSTGRES_DB: main
     ports:
