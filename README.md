@@ -59,8 +59,14 @@ Requests to `localhost:3000/api` are proxied to `localhost:4000/api`
 **Linux**
 ```bash
 docker compose -f compose.dev.yaml up -d
-cd backend && cargo watch -x run --features=docs
-cd frontend && pnpm start
+./run_backend 
+./run_frontend; 
+```
+
+**Nix Specific**
+Install the dependencies using the provided flake.nix. (This installs: postman nodejs, docker, cargo-watch, rustc & cargo)
+```bash
+nix develop
 ```
 
 **Windows**
