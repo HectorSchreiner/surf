@@ -2,6 +2,7 @@ use ::async_trait::async_trait;
 use ::chrono::{DateTime, Utc};
 use ::futures::Stream;
 use ::serde::{Deserialize, Serialize};
+use ::thiserror::Error;
 use ::uuid::Uuid;
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
@@ -56,7 +57,9 @@ impl Vulnerability {
     }
 }
 
+#[derive(Debug, Error)]
 pub enum ListVulnerabilitiesError {
+    #[error(transparent)]
     Other(anyhow::Error),
 }
 
@@ -71,12 +74,14 @@ pub struct NewVulnerability {
     pub description: String,
 }
 
+#[derive(Debug, Error)]
 pub enum NewVulnerabilityError {
+    #[error(transparent)]
     Other(anyhow::Error),
 }
 
 #[async_trait]
-pub trait VulnerabilityRepo {
+pub trait VulnerabilityRepo: Send + Sync + 'static {
     /// Lists all vulnerabilities in the repository
     async fn list_vulnerabilities(&self) -> Result<Vec<Vulnerability>, ListVulnerabilitiesError>;
 

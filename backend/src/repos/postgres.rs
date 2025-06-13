@@ -220,8 +220,8 @@ impl VulnerabilityRepo for Postgres {
         let model: VulnerabilityModel = vulnerability.clone().into();
 
         let sql = r#"
-            INSERT INTO vulnerabilities
-            VALUES (id, created_at, updated_at, key, reserved_at, published_at, name, description)
+            INSERT INTO vulnerabilities (id, created_at, updated_at, key, reserved_at, published_at, name, description)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         "#;
 
         let query = sqlx::query(sql)

@@ -1,3 +1,6 @@
+use ::axum::extract::State;
+use ::axum::response::IntoResponse;
+
 use super::*;
 use crate::domains::vulnerabilities::{Vulnerability, VulnerabilityId};
 
@@ -9,17 +12,14 @@ use crate::domains::vulnerabilities::{Vulnerability, VulnerabilityId};
             (status = 500, description = "Failed to list vulnerabilities, because of an internal server error", body=String)
         ),
     ))]
-pub async fn list() -> (StatusCode, Json<Vec<Vulnerability>>) {
-    let vulnerabilities = vec![Vulnerability {
-        id: VulnerabilityId::new(),
-        created_at: Utc::now(),
-        updated_at: Utc::now(),
-        key: "CVE-2025-0001".to_string(),
-        reserved_at: None,
-        published_at: None,
-        name: "skrt".to_string(),
-        description: "bob bob".to_string(),
-    }];
+pub async fn list(state: State<App>) -> impl IntoResponse {
+    let App { vulnerability_service, .. } = &state.0;
 
-    (StatusCode::OK, Json(vulnerabilities))
+    match vulnerability_service.list_vulnerabilities().await {
+        Ok(vulnerabilities) => (StatusCode::OK, Json(vulnerabilities)).into_response(),
+        Err(err) => {
+            tracing::error!(?err, "failed to list vulnerabilities");
+            (StatusCode::INTERNAL_SERVER_ERROR,).into_response()
+        }
+    }
 }

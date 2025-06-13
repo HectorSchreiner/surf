@@ -1,16 +1,18 @@
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 
-use ::chrono::{DateTime, Utc};
+use ::chrono::{DateTime, NaiveDateTime, Utc};
 use ::serde::Deserialize;
 use ::serde_json::Value as JsonValue;
 use ::tokio::fs;
 use ::tokio::net::TcpListener;
 use ::url::Url;
-use chrono::NaiveDateTime;
 
 use crate::config::Config;
 use crate::repos::{Github, Postgres};
+use crate::routes::App;
 use crate::services::users::UserService;
+use crate::services::vulnerabilities::{self, VulnerabilityService};
 
 mod config;
 mod domains;
@@ -30,19 +32,28 @@ async fn main() -> anyhow::Result<()> {
     let postgres = Postgres::connect().await?;
     tracing::info!("successfully connected to postgres");
 
-    // let github = Github::new(config.services.github).await.unwrap();
+    let github = Github::new(config.services.github).await.unwrap();
 
-    let contents = fs::read("/home/sebberas/Desktop/surf/CVE-2019-1002100.json")
-        .await
-        .unwrap();
+    // let contents = fs::read("/home/sebberas/Desktop/surf/CVE-2019-1002100.json")
+    //     .await
+    //     .unwrap();
 
-    let record = serde_json::from_slice::<CveRecord>(&contents).unwrap();
+    // let record = serde_json::from_slice::<CveRecord>(&contents).unwrap();
+
+    // println!("{record:?}");
+
+    let vulnerability_service = vulnerabilities::Service::new(postgres).await;
 
     // let user_service = UserService::new(postgres.clone(), config.security).await?;
 
+    let app = App {
+        vulnerability_service: Arc::new(vulnerability_service),
+        alerts: Arc::default(),
+    };
+
     let listener = TcpListener::bind("localhost:4000").await?;
     println!("listening on port 4000");
-    axum::serve(listener, routes::setup()).await?;
+    axum::serve(listener, routes::setup(app)).await?;
 
     Ok(())
 }
@@ -72,7 +83,9 @@ pub struct CveMeta {
     #[serde(rename = "dateReserved")]
     pub reserved_at: CveTimestamp,
     #[serde(rename = "datePublished")]
-    pub published_at: CveTimestamp,
+    pub published_at: Option<CveTimestamp>,
+    #[serde(rename = "dateRejected")]
+    pub rejected_at: Option<CveTimestamp>,
     #[serde(rename = "dateUpdated")]
     pub updated_at: CveTimestamp,
 }
@@ -87,7 +100,17 @@ pub struct CveReference {
 
 #[derive(Debug, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
+pub struct CveDescription {
+    #[serde(rename = "lang")]
+    pub language: String,
+    pub value: String,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct CveCnaContainer {
+    pub title: Option<String>,
+    pub descriptions: Vec<CveDescription>,
     pub references: Vec<CveReference>,
 }
 
