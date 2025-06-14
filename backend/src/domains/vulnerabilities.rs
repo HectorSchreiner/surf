@@ -37,6 +37,7 @@ pub struct Vulnerability {
     pub key: String,
     pub reserved_at: Option<DateTime<Utc>>,
     pub published_at: Option<DateTime<Utc>>,
+    pub rejected_at: Option<DateTime<Utc>>,
     pub name: String,
     pub description: String,
 }
@@ -51,6 +52,7 @@ impl Vulnerability {
             key: args.key,
             reserved_at: args.reserved_at,
             published_at: args.published_at,
+            rejected_at: args.rejected_at,
             name: args.name,
             description: args.description,
         }
@@ -70,6 +72,7 @@ pub struct NewVulnerability {
     pub key: String,
     pub reserved_at: Option<DateTime<Utc>>,
     pub published_at: Option<DateTime<Utc>>,
+    pub rejected_at: Option<DateTime<Utc>>,
     pub name: String,
     pub description: String,
 }

@@ -7,8 +7,10 @@ use ::serde::Deserialize;
 use ::serde_json::Value as JsonValue;
 use ::tokio::net::TcpListener;
 use ::url::Url;
+use tokio::sync::broadcast::error::RecvError;
 
 use crate::config::Config;
+use crate::domains::vulnerabilities::{NewVulnerability, VulnerabilityRepo};
 use crate::repos::{Github, Postgres};
 use crate::routes::App;
 use crate::services::users::UserService;
@@ -37,6 +39,38 @@ async fn main() -> anyhow::Result<()> {
 
     let github = Github::new(config.services.github).await.unwrap();
 
+    {
+        let postgres = Postgres::clone(&postgres);
+        let mut listener = github.listen();
+        tokio::spawn(async move {
+            loop {
+                match listener.recv().await {
+                    Ok(record) => {
+                        let new_vulnerability_args = NewVulnerability {
+                            key: record.metadata.id.into(),
+                            reserved_at: record.metadata.reserved_at.map(|ts| ts.and_utc()),
+                            published_at: record.metadata.published_at.map(|ts| ts.and_utc()),
+                            rejected_at: record.metadata.rejected_at.map(|ts| ts.and_utc()),
+                            name: record.metadata.id.into(),
+                            description: record.metadata.id.into(),
+                        };
+
+                        match postgres.new_vulnerability(new_vulnerability_args).await {
+                            Err(err) => tracing::error!(?err, "failed to create vulnerability"),
+                            _ => {}
+                        }
+                    }
+                    Err(RecvError::Lagged(n)) => {
+                        tracing::warn!(?n, "lost vulnerabilities");
+                    }
+                    Err(RecvError::Closed) => break,
+                }
+            }
+        });
+    }
+
+    // github.start();
+
     // let contents = fs::read("/home/sebberas/Desktop/surf/CVE-2019-1002100.json")
     //     .await
     //     .unwrap();
@@ -59,77 +93,4 @@ async fn main() -> anyhow::Result<()> {
     axum::serve(listener, routes::setup(app)).await?;
 
     Ok(())
-}
-
-#[derive(Debug, Deserialize, PartialEq, Eq)]
-#[serde(untagged)]
-pub enum CveTimestamp {
-    With(DateTime<Utc>),
-    Without(NaiveDateTime),
-}
-
-impl CveTimestamp {
-    pub fn and_utc(&self) -> DateTime<Utc> {
-        match self {
-            Self::With(ts) => *ts,
-            Self::Without(ts) => ts.and_utc(),
-        }
-    }
-}
-
-#[derive(Debug, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub struct CveMeta {
-    #[serde(rename = "cveId")]
-    pub id: String,
-    pub state: String,
-    #[serde(rename = "dateReserved")]
-    pub reserved_at: CveTimestamp,
-    #[serde(rename = "datePublished")]
-    pub published_at: Option<CveTimestamp>,
-    #[serde(rename = "dateRejected")]
-    pub rejected_at: Option<CveTimestamp>,
-    #[serde(rename = "dateUpdated")]
-    pub updated_at: CveTimestamp,
-}
-
-#[derive(Debug, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct CveReference {
-    pub url: Url,
-    #[serde(default)]
-    pub tags: Vec<String>,
-}
-
-#[derive(Debug, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct CveDescription {
-    #[serde(rename = "lang")]
-    pub language: String,
-    pub value: String,
-}
-
-#[derive(Debug, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct CveCnaContainer {
-    pub title: Option<String>,
-    pub descriptions: Vec<CveDescription>,
-    pub references: Vec<CveReference>,
-}
-
-#[derive(Debug, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub enum CveContainer {
-    Cna(CveCnaContainer),
-    Adp {},
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CveRecord {
-    pub data_type: String,
-    pub data_version: String,
-    #[serde(rename = "cveMetadata")]
-    pub metadata: CveMeta,
-    pub containers: HashMap<String, JsonValue>,
 }

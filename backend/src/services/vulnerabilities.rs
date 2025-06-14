@@ -1,13 +1,10 @@
 use std::io::{Cursor, Read};
 
 use ::async_trait::async_trait;
-use ::tokio::fs;
-use ::zip::ZipArchive;
 
 use crate::domains::vulnerabilities::{
     ListVulnerabilitiesError, NewVulnerability, Vulnerability, VulnerabilityRepo,
 };
-use crate::{CveCnaContainer, CveRecord};
 
 #[async_trait]
 pub trait VulnerabilityService: Send + Sync + 'static {

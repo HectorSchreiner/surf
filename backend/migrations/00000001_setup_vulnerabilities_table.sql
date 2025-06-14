@@ -6,6 +6,7 @@ CREATE TABLE vulnerabilities (
     key TEXT NOT NULL,
     reserved_at TIMESTAMPTZ,
     published_at TIMESTAMPTZ,
+    rejected_at TIMESTAMPTZ,
     name TEXT NOT NULL,
     description TEXT NOT NULL,
 

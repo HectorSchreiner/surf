@@ -1,8 +1,9 @@
+use std::collections::HashMap;
 use std::io::{Cursor, Read};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use ::anyhow::anyhow;
-use ::chrono::{Duration, DurationRound, Utc};
+use ::chrono::{DateTime, Duration, DurationRound, NaiveDateTime, Utc};
 use ::futures::StreamExt;
 use ::octocrab::Octocrab;
 use ::octocrab::models::AssetId;
@@ -10,12 +11,15 @@ use ::octocrab::models::repos::{Asset, Release};
 use ::octocrab::repos::RepoHandler;
 use ::secrecy::SecretString;
 use ::serde::Deserialize;
+use ::serde_json::Value as JsonValue;
+use ::serde_with::{TryFromInto, serde_as};
+use ::tokio::sync::broadcast;
 use ::tokio::task::{JoinHandle, JoinSet};
-use ::tokio::{fs, task, time};
-use ::tracing::{Instrument, info_span};
+use ::tokio::{task, time};
+use ::tracing::{Instrument, info, info_span};
+use ::url::Url;
 use ::zip::ZipArchive;
 
-use crate::CveRecord;
 use crate::domains::vulnerabilities::{VulnerabilityEvent, VulnerabilityFeed};
 
 #[derive(Debug, Deserialize)]
@@ -25,7 +29,10 @@ pub struct GithubConfig {
 }
 
 pub struct Github {
-    poll_task: JoinHandle<()>,
+    client: Octocrab,
+    task: Arc<Mutex<Option<JoinHandle<()>>>>,
+    tx: broadcast::Sender<CveRecord>,
+    rx: broadcast::Receiver<CveRecord>,
 }
 
 impl Github {
@@ -38,30 +45,51 @@ impl Github {
             .personal_token(access_token.expose_secret())
             .build()?;
 
-        let poll_task = tokio::spawn(async move {
-            loop {
-                tracing::info!("started polling vulnerabilities");
-                Self::poll(&client, true).await.unwrap();
+        let (tx, rx) = broadcast::channel(500 * 1024);
+        let task = Arc::new(Mutex::new(None));
 
-                let now = Utc::now();
-
-                let mut next = now.duration_round(Duration::hours(2)).unwrap();
-                if next <= now {
-                    next += Duration::hours(2);
-                }
-
-                // We offset the next poll time by 10 minutes to ensure that the new releaase has been published
-                next += Duration::minutes(10);
-                tracing::info!(next=?next, "finished polling vulnerabilities");
-                time::sleep((next - now).to_std().unwrap()).await;
-            }
-        });
-
-        Ok(Self { poll_task })
+        Ok(Self { client, tx, rx, task })
     }
 
-    #[tracing::instrument(skip(client), name = "github::poll")]
-    async fn poll(client: &Octocrab, all: bool) -> anyhow::Result<()> {
+    /// Starts the underlying task
+    pub fn start(&self) {
+        let Self { client, task, tx, .. } = self;
+        let client = Octocrab::clone(client);
+        let tx = broadcast::Sender::clone(tx);
+
+        let mut task = task.lock().unwrap();
+        *task = Some(tokio::spawn(
+            async move {
+                loop {
+                    tracing::info!("started to poll vulnerabilities");
+                    match Self::poll(&client, true).await {
+                        Ok(records) => {
+                            tracing::info!(n = records.len(), "finished polling vulnerabilities");
+
+                            for record in records {
+                                tx.send(record).unwrap();
+                            }
+                        }
+                        Err(err) => {
+                            tracing::error!(?err, "failed polling vulnerabilities")
+                        }
+                    };
+
+                    let (next, until) = Self::next_poll();
+                    tracing::info!(ts = ?next, "scheduled next polling");
+                    time::sleep(until.to_std().unwrap()).await;
+                }
+            }
+            .instrument(info_span!("github::task::poll")),
+        ));
+    }
+
+    pub fn listen(&self) -> broadcast::Receiver<CveRecord> {
+        self.tx.subscribe()
+    }
+
+    #[tracing::instrument(skip(client))]
+    async fn poll(client: &Octocrab, all: bool) -> anyhow::Result<Vec<CveRecord>> {
         tracing::info!("started to retrieve releases page");
         let repo = client.repos("cveproject", "cvelistv5");
         let releases = repo.releases().list().per_page(100).send().await.unwrap();
@@ -87,20 +115,31 @@ impl Github {
                 }
             };
 
-            // Spawn a blocking task to not starve the executor, while decompressing the asset contents
-            let decompress_task =
-                task::spawn_blocking(move || Self::decompress_asset_archive(asset_contents, all));
-
-            let decompressed_files = decompress_task.await??;
+            tracing::info!("started to decompress asset archive");
+            let asset_files = Self::decompress_asset_archive_task(asset_contents, all).await?;
+            tracing::info!("successfully decompressed asset archive");
 
             tracing::info!("started to decode files");
-            let records = Self::decode_asset_files(decompressed_files).await?;
+            let records = Self::decode_asset_files(asset_files).await?;
             tracing::info!(n = records.len(), "successfully decoded files");
 
-            Ok(())
+            Ok(records)
         } else {
             return Err(anyhow!("releases page is empty"));
         }
+    }
+
+    fn next_poll() -> (DateTime<Utc>, Duration) {
+        let now = Utc::now();
+        let mut next = now.duration_round(Duration::hours(2)).unwrap();
+        if next <= now {
+            next += Duration::hours(2);
+        }
+
+        // We offset the next poll time by 10 minutes to increase the likelyhood that the new release has actually been published
+        next += Duration::minutes(10);
+
+        (next, next - now)
     }
 
     /// Retrieves the contents of the asset
@@ -149,12 +188,15 @@ impl Github {
             }
         }
 
-        tracing::info!(
-            n = decompressed_files.len(),
-            "successfully decompressed files"
-        );
-
         Ok(decompressed_files)
+    }
+
+    async fn decompress_asset_archive_task(
+        contents: Vec<u8>,
+        all: bool,
+    ) -> anyhow::Result<Vec<Vec<u8>>> {
+        // Spawn a blocking task to not starve the executor, while decompressing the asset contents
+        task::spawn_blocking(move || Self::decompress_asset_archive(contents, all)).await?
     }
 
     /// Decodes the asset files into records
@@ -177,7 +219,7 @@ impl Github {
             tasks.spawn_blocking(move || {
                 files_chunk
                     .into_iter()
-                    .map(|i| serde_json::from_slice(&files[i]))
+                    .map(|i| Self::decode_asset_file(&files[i]))
                     .collect::<Result<Vec<_>, _>>()
             });
         }
@@ -196,6 +238,21 @@ impl Github {
 
         Ok(records)
     }
+
+    #[tracing::instrument(skip(file))]
+    fn decode_asset_file(file: &[u8]) -> serde_json::Result<CveRecord> {
+        match serde_json::from_slice(file) {
+            Ok(record) => Ok(record),
+            Err(err) => {
+                tracing::warn!(
+                    file = ?str::from_utf8(&file),
+                    ?err,
+                    "failed to decode asset file"
+                );
+                return Err(err);
+            }
+        }
+    }
 }
 
 // #[async_trait]
@@ -205,3 +262,155 @@ impl Github {
 //         Ok(BroadcastStream::new(rx))
 //     }
 // }
+
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
+#[serde(untagged)]
+pub enum CveTimestamp {
+    With(DateTime<Utc>),
+    Without(NaiveDateTime),
+}
+
+impl CveTimestamp {
+    pub fn and_utc(&self) -> DateTime<Utc> {
+        match self {
+            Self::With(ts) => *ts,
+            Self::Without(ts) => ts.and_utc(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CveId {
+    pub year: u16,
+    pub id: u64,
+}
+
+impl TryFrom<&str> for CveId {
+    type Error = anyhow::Error;
+
+    // See https://github.com/CVEProject/cve-schema/blob/main/schema/CVE_Record_Format.json
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        if value.starts_with("CVE-") {
+            if (&value[4..8]).chars().all(|c| c.is_ascii_digit()) {
+                let year: u16 = value[4..8].parse().unwrap();
+
+                if &value[8..9] == "-" && (4..=19).contains(&value[9..].chars().count()) {
+                    if value[9..].chars().all(|c| c.is_ascii_digit()) {
+                        let id: u64 = value[9..].parse().unwrap();
+                        return Ok(Self { year, id });
+                    }
+                }
+
+                Err(anyhow!("invalid valid"))
+            } else {
+                Err(anyhow!("year must contain 4 digits"))
+            }
+        } else {
+            return Err(anyhow!("value isn't prefixed with \"CVE-\""));
+        }
+    }
+}
+
+impl From<CveId> for String {
+    fn from(value: CveId) -> Self {
+        format!("CVE-{:04}-{:04}", value.year, value.id)
+    }
+}
+
+#[serde_as]
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct CveMeta {
+    #[serde_as(as = "TryFromInto<&str>")]
+    #[serde(rename = "cveId")]
+    pub id: CveId,
+    pub state: String,
+    #[serde(rename = "dateReserved")]
+    pub reserved_at: Option<CveTimestamp>,
+    #[serde(rename = "datePublished")]
+    pub published_at: Option<CveTimestamp>,
+    #[serde(rename = "dateRejected")]
+    pub rejected_at: Option<CveTimestamp>,
+    #[serde(rename = "dateUpdated")]
+    pub updated_at: Option<CveTimestamp>,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CveReference {
+    pub url: Url,
+    #[serde(default)]
+    pub tags: Vec<String>,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CveDescription {
+    #[serde(rename = "lang")]
+    pub language: String,
+    pub value: String,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CveCnaContainer {
+    pub title: Option<String>,
+    pub descriptions: Vec<CveDescription>,
+    pub references: Vec<CveReference>,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub enum CveContainer {
+    Cna(CveCnaContainer),
+    Adp {},
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CveDataType;
+
+impl CveDataType {
+    const VALUE: &str = "CVE_RECORD";
+}
+
+impl TryFrom<&str> for CveDataType {
+    type Error = anyhow::Error;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        if value == Self::VALUE {
+            Ok(CveDataType)
+        } else {
+            Err(anyhow!(
+                "invalid value (got: {value:?}, expected: {:?})",
+                Self::VALUE
+            ))
+        }
+    }
+}
+
+#[serde_as]
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CveRecord {
+    #[serde_as(as = "TryFromInto<&str>")]
+    pub data_type: CveDataType,
+    pub data_version: String,
+    #[serde(rename = "cveMetadata")]
+    pub metadata: CveMeta,
+    pub containers: HashMap<String, JsonValue>,
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::repos::github::CveId;
+
+    #[test]
+    fn test_try_from_cve_id() {
+        let cve = CveId::try_from("CVE-0000-0000").unwrap();
+        assert!(cve.year == 0 && cve.id == 0);
+
+        let cve = CveId::try_from("CVE-2020-1234567891011121314").unwrap();
+        println!("{cve:?}");
+        assert!(cve.year == 2020 && cve.id == 1234567891011121314);
+    }
+}

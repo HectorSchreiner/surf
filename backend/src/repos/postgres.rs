@@ -157,6 +157,7 @@ pub struct VulnerabilityModel {
     pub key: String,
     pub reserved_at: Option<DateTime<Utc>>,
     pub published_at: Option<DateTime<Utc>>,
+    pub rejected_at: Option<DateTime<Utc>>,
     pub name: String,
     pub description: String,
 }
@@ -170,6 +171,7 @@ impl From<Vulnerability> for VulnerabilityModel {
             key: value.key,
             reserved_at: value.reserved_at,
             published_at: value.published_at,
+            rejected_at: value.rejected_at,
             name: value.name,
             description: value.description,
         }
@@ -187,6 +189,7 @@ impl TryFrom<VulnerabilityModel> for Vulnerability {
             key: value.key,
             reserved_at: value.reserved_at,
             published_at: value.published_at,
+            rejected_at: value.rejected_at,
             name: value.name,
             description: value.description,
         })
@@ -220,8 +223,8 @@ impl VulnerabilityRepo for Postgres {
         let model: VulnerabilityModel = vulnerability.clone().into();
 
         let sql = r#"
-            INSERT INTO vulnerabilities (id, created_at, updated_at, key, reserved_at, published_at, name, description)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            INSERT INTO vulnerabilities (id, created_at, updated_at, key, reserved_at, published_at, rejected_at, name, description)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         "#;
 
         let query = sqlx::query(sql)
@@ -231,6 +234,7 @@ impl VulnerabilityRepo for Postgres {
             .bind(model.key)
             .bind(model.reserved_at)
             .bind(model.published_at)
+            .bind(model.rejected_at)
             .bind(model.name)
             .bind(model.description);
 
