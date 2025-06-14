@@ -65,6 +65,17 @@ pub enum ListVulnerabilitiesError {
     Other(anyhow::Error),
 }
 
+#[derive(Debug, Clone)]
+pub struct SearchVulnerabilities {
+    pub words: Vec<String>,
+}
+
+#[derive(Debug, Error)]
+pub enum SearchVulnerabilitiesError {
+    #[error(transparent)]
+    Other(anyhow::Error),
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "docs", derive(utoipa::ToSchema))]
@@ -87,6 +98,12 @@ pub enum NewVulnerabilityError {
 pub trait VulnerabilityRepo: Send + Sync + 'static {
     /// Lists all vulnerabilities in the repository
     async fn list_vulnerabilities(&self) -> Result<Vec<Vulnerability>, ListVulnerabilitiesError>;
+
+    /// Searches for vulnerabilities
+    async fn search_vulnerabilities(
+        &self,
+        req: SearchVulnerabilities,
+    ) -> Result<Vec<Vulnerability>, SearchVulnerabilitiesError>;
 
     /// Creates a new vulnerability in the repository
     async fn new_vulnerability(

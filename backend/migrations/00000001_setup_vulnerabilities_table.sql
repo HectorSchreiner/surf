@@ -11,4 +11,7 @@ CREATE TABLE vulnerabilities (
     description TEXT NOT NULL,
 
     UNIQUE (key)
-)
+);
+
+-- We create an index for efficiently searching the vulnerabilities
+CREATE INDEX vulnerabilities_search ON vulnerabilities USING GIN ((to_tsvector('english', key) || to_tsvector('english', name) || to_tsvector('english', description)));

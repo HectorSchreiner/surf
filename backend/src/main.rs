@@ -11,7 +11,7 @@ use tokio::sync::broadcast::error::RecvError;
 
 use crate::config::Config;
 use crate::domains::vulnerabilities::{NewVulnerability, VulnerabilityRepo};
-use crate::repos::{Github, Postgres};
+use crate::repos::{CveCnaContainer, Github, Postgres};
 use crate::routes::App;
 use crate::services::users::UserService;
 use crate::services::vulnerabilities::{self, VulnerabilityService};
@@ -46,13 +46,25 @@ async fn main() -> anyhow::Result<()> {
             loop {
                 match listener.recv().await {
                     Ok(record) => {
+                        let description = if let Some(cna) = record.containers.get("cna") {
+                            if let Ok(container) =
+                                serde_json::from_value::<CveCnaContainer>(cna.clone())
+                            {
+                                Some(container.descriptions[0].value.clone())
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        };
+
                         let new_vulnerability_args = NewVulnerability {
                             key: record.metadata.id.into(),
                             reserved_at: record.metadata.reserved_at.map(|ts| ts.and_utc()),
                             published_at: record.metadata.published_at.map(|ts| ts.and_utc()),
                             rejected_at: record.metadata.rejected_at.map(|ts| ts.and_utc()),
                             name: record.metadata.id.into(),
-                            description: record.metadata.id.into(),
+                            description: description.unwrap_or_else(|| record.metadata.id.into()),
                         };
 
                         match postgres.new_vulnerability(new_vulnerability_args).await {
@@ -69,7 +81,7 @@ async fn main() -> anyhow::Result<()> {
         });
     }
 
-    // github.start();
+    github.start();
 
     // let contents = fs::read("/home/sebberas/Desktop/surf/CVE-2019-1002100.json")
     //     .await

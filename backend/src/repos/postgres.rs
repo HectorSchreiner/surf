@@ -215,6 +215,13 @@ impl VulnerabilityRepo for Postgres {
         }
     }
 
+    async fn search_vulnerabilities(
+        &self,
+        req: SearchVulnerabilities,
+    ) -> Result<Vec<Vulnerability>, SearchVulnerabilitiesError> {
+        todo!()
+    }
+
     #[tracing::instrument(skip(self))]
     async fn new_vulnerability(&self, args: NewVulnerability) -> NewVulnerabilityResult {
         let Self { pool } = self;
