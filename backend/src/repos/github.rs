@@ -1,4 +1,5 @@
 use std::io::{Cursor, Read};
+use std::sync::Arc;
 
 use ::anyhow::anyhow;
 use ::chrono::{Duration, DurationRound, Utc};
@@ -9,7 +10,7 @@ use ::octocrab::models::repos::{Asset, Release};
 use ::octocrab::repos::RepoHandler;
 use ::secrecy::SecretString;
 use ::serde::Deserialize;
-use ::tokio::task::JoinHandle;
+use ::tokio::task::{JoinHandle, JoinSet};
 use ::tokio::{fs, task, time};
 use ::tracing::{Instrument, info_span};
 use ::zip::ZipArchive;
@@ -40,7 +41,7 @@ impl Github {
         let poll_task = tokio::spawn(async move {
             loop {
                 tracing::info!("started polling vulnerabilities");
-                Self::poll(&client, false).await.unwrap();
+                Self::poll(&client, true).await.unwrap();
 
                 let now = Utc::now();
 
@@ -61,7 +62,7 @@ impl Github {
 
     #[tracing::instrument(skip(client), name = "github::poll")]
     async fn poll(client: &Octocrab, all: bool) -> anyhow::Result<()> {
-        tracing::info!("retrieving releases page");
+        tracing::info!("started to retrieve releases page");
         let repo = client.repos("cveproject", "cvelistv5");
         let releases = repo.releases().list().per_page(100).send().await.unwrap();
         tracing::info!("successfully retrieved releases page");
@@ -88,14 +89,13 @@ impl Github {
 
             // Spawn a blocking task to not starve the executor, while decompressing the asset contents
             let decompress_task =
-                task::spawn_blocking(move || Self::decompress_asset_contents(asset_contents, all));
+                task::spawn_blocking(move || Self::decompress_asset_archive(asset_contents, all));
 
             let decompressed_files = decompress_task.await??;
 
-            for file in decompressed_files {
-                let record: CveRecord = serde_json::from_slice(&file).unwrap();
-                println!("{record:#?}");
-            }
+            tracing::info!("started to decode files");
+            let records = Self::decode_asset_files(decompressed_files).await?;
+            tracing::info!(n = records.len(), "successfully decoded files");
 
             Ok(())
         } else {
@@ -115,7 +115,7 @@ impl Github {
     }
 
     /// Decompresses the asset contents into all the files contained
-    fn decompress_asset_contents(contents: Vec<u8>, all: bool) -> anyhow::Result<Vec<Vec<u8>>> {
+    fn decompress_asset_archive(contents: Vec<u8>, all: bool) -> anyhow::Result<Vec<Vec<u8>>> {
         let mut archive = ZipArchive::new(Cursor::new(contents))?;
 
         // We decompress twice, because the archive containing all vulnerabilities is double compressed
@@ -155,6 +155,46 @@ impl Github {
         );
 
         Ok(decompressed_files)
+    }
+
+    /// Decodes the asset files into records
+    async fn decode_asset_files(files: Vec<Vec<u8>>) -> anyhow::Result<Vec<CveRecord>> {
+        let mut records = Vec::with_capacity(files.len());
+
+        let files: Arc<[Vec<u8>]> = Arc::from(files);
+
+        const FILES_CHUNK_SIZE: usize = 8192;
+        let mut file_indices = Vec::new();
+        while file_indices.len() * FILES_CHUNK_SIZE < files.len() {
+            let start = file_indices.len() * FILES_CHUNK_SIZE;
+            file_indices.push(start..(start + FILES_CHUNK_SIZE).min(files.len()));
+        }
+
+        let mut tasks = JoinSet::new();
+        for files_chunk in file_indices {
+            let files = Arc::clone(&files);
+
+            tasks.spawn_blocking(move || {
+                files_chunk
+                    .into_iter()
+                    .map(|i| serde_json::from_slice(&files[i]))
+                    .collect::<Result<Vec<_>, _>>()
+            });
+        }
+
+        while let Some(result) = tasks.join_next().await {
+            match result {
+                Ok(records_chunk) => {
+                    records.extend(records_chunk?);
+                }
+                Err(err) => {
+                    tracing::error!(?err, "task panicked");
+                    return Err(err.into());
+                }
+            }
+        }
+
+        Ok(records)
     }
 }
 

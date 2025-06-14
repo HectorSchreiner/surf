@@ -2,9 +2,9 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use ::chrono::{DateTime, NaiveDateTime, Utc};
+use ::mimalloc::MiMalloc;
 use ::serde::Deserialize;
 use ::serde_json::Value as JsonValue;
-use ::tokio::fs;
 use ::tokio::net::TcpListener;
 use ::url::Url;
 
@@ -20,6 +20,9 @@ mod repos;
 mod routes;
 mod services;
 mod telemetry;
+
+#[global_allocator]
+static GLOBAL: MiMalloc = MiMalloc;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -52,7 +55,7 @@ async fn main() -> anyhow::Result<()> {
     };
 
     let listener = TcpListener::bind("localhost:4000").await?;
-    println!("listening on port 4000");
+    tracing::info!("started listening");
     axum::serve(listener, routes::setup(app)).await?;
 
     Ok(())
