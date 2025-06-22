@@ -4,6 +4,7 @@ use ::futures::Stream;
 use ::serde::{Deserialize, Serialize};
 use ::thiserror::Error;
 use ::uuid::Uuid;
+use url::Url;
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[cfg_attr(feature = "docs", derive(utoipa::ToSchema))]
@@ -30,6 +31,15 @@ impl Into<Uuid> for VulnerabilityId {
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "docs", derive(utoipa::ToSchema))]
+pub struct VulnerabilityReference {
+    pub url: Url,
+    pub name: Option<String>,
+    pub tags: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "docs", derive(utoipa::ToSchema))]
 pub struct Vulnerability {
     pub id: VulnerabilityId,
     pub created_at: DateTime<Utc>,
@@ -40,6 +50,7 @@ pub struct Vulnerability {
     pub rejected_at: Option<DateTime<Utc>>,
     pub name: String,
     pub description: String,
+    pub references: Vec<VulnerabilityReference>,
 }
 
 impl Vulnerability {
@@ -55,6 +66,7 @@ impl Vulnerability {
             rejected_at: args.rejected_at,
             name: args.name,
             description: args.description,
+            references: args.references,
         }
     }
 }
@@ -86,6 +98,7 @@ pub struct NewVulnerability {
     pub rejected_at: Option<DateTime<Utc>>,
     pub name: String,
     pub description: String,
+    pub references: Vec<VulnerabilityReference>,
 }
 
 #[derive(Debug, Error)]

@@ -10,8 +10,10 @@ use ::url::Url;
 use tokio::sync::broadcast::error::RecvError;
 
 use crate::config::Config;
-use crate::domains::vulnerabilities::{NewVulnerability, VulnerabilityRepo};
-use crate::repos::{CveCnaContainer, Github, Postgres};
+use crate::domains::vulnerabilities::{
+    NewVulnerability, VulnerabilityReference, VulnerabilityRepo,
+};
+use crate::repos::{CveCnaContainer, CveCnaPublishedContainer, CveMeta, Github, Postgres};
 use crate::routes::App;
 use crate::services::users::UserService;
 use crate::services::vulnerabilities::{self, VulnerabilityService};
@@ -45,33 +47,39 @@ async fn main() -> anyhow::Result<()> {
         tokio::spawn(async move {
             loop {
                 match listener.recv().await {
-                    Ok(record) => {
-                        let description = if let Some(cna) = record.containers.get("cna") {
-                            if let Ok(container) =
-                                serde_json::from_value::<CveCnaContainer>(cna.clone())
-                            {
-                                Some(container.descriptions[0].value.clone())
-                            } else {
-                                None
+                    Ok(record) => match record.meta {
+                        CveMeta::Published(meta) => {
+                            let cna = record.containers.get("cna").unwrap();
+                            let cna: CveCnaPublishedContainer =
+                                serde_json::from_value(cna.clone()).unwrap();
+
+                            let new_vulnerability_args = NewVulnerability {
+                                key: meta.id.into(),
+                                reserved_at: meta.reserved_at,
+                                published_at: meta.published_at,
+                                rejected_at: None,
+                                name: cna.title.unwrap_or_else(|| meta.id.into()),
+                                description: cna.descriptions[0].value.clone(),
+                                references: cna
+                                    .references
+                                    .into_iter()
+                                    .map(|reference| VulnerabilityReference {
+                                        url: reference.url,
+                                        name: reference.name,
+                                        tags: reference.tags,
+                                    })
+                                    .collect(),
+                            };
+
+                            match postgres.new_vulnerability(new_vulnerability_args).await {
+                                Err(err) => {
+                                    tracing::error!(?err, "failed to create vulnerability")
+                                }
+                                _ => {}
                             }
-                        } else {
-                            None
-                        };
-
-                        let new_vulnerability_args = NewVulnerability {
-                            key: record.metadata.id.into(),
-                            reserved_at: record.metadata.reserved_at.map(|ts| ts.and_utc()),
-                            published_at: record.metadata.published_at.map(|ts| ts.and_utc()),
-                            rejected_at: record.metadata.rejected_at.map(|ts| ts.and_utc()),
-                            name: record.metadata.id.into(),
-                            description: description.unwrap_or_else(|| record.metadata.id.into()),
-                        };
-
-                        match postgres.new_vulnerability(new_vulnerability_args).await {
-                            Err(err) => tracing::error!(?err, "failed to create vulnerability"),
-                            _ => {}
                         }
-                    }
+                        CveMeta::Rejected(meta) => {}
+                    },
                     Err(RecvError::Lagged(n)) => {
                         tracing::warn!(?n, "lost vulnerabilities");
                     }

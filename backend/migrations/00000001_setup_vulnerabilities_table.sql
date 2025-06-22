@@ -9,6 +9,7 @@ CREATE TABLE vulnerabilities (
     rejected_at TIMESTAMPTZ,
     name TEXT NOT NULL,
     description TEXT NOT NULL,
+    "references" JSONB NOT NULL,
 
     UNIQUE (key)
 );

@@ -4,6 +4,9 @@ use ::sqlx::migrate;
 use ::sqlx::postgres::PgPool;
 use ::sqlx::prelude::*;
 use ::uuid::Uuid;
+use serde::{Deserialize, Serialize};
+use sqlx::types::Json;
+use url::Url;
 
 use crate::domains::users::*;
 use crate::domains::vulnerabilities::*;
@@ -149,6 +152,27 @@ impl UserRepo for Postgres {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+pub struct VulnerabilityReferenceModel {
+    pub url: Url,
+    pub name: Option<String>,
+    pub tags: Vec<String>,
+}
+
+impl From<VulnerabilityReference> for VulnerabilityReferenceModel {
+    fn from(value: VulnerabilityReference) -> Self {
+        Self { url: value.url, name: value.name, tags: value.tags }
+    }
+}
+
+impl TryFrom<VulnerabilityReferenceModel> for VulnerabilityReference {
+    type Error = anyhow::Error;
+
+    fn try_from(value: VulnerabilityReferenceModel) -> Result<Self, Self::Error> {
+        Ok(Self { url: value.url, name: value.name, tags: value.tags })
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, FromRow)]
 pub struct VulnerabilityModel {
     pub id: Uuid,
@@ -160,6 +184,7 @@ pub struct VulnerabilityModel {
     pub rejected_at: Option<DateTime<Utc>>,
     pub name: String,
     pub description: String,
+    pub references: Json<Vec<VulnerabilityReferenceModel>>,
 }
 
 impl From<Vulnerability> for VulnerabilityModel {
@@ -174,6 +199,7 @@ impl From<Vulnerability> for VulnerabilityModel {
             rejected_at: value.rejected_at,
             name: value.name,
             description: value.description,
+            references: Json(value.references.into_iter().map(Into::into).collect()),
         }
     }
 }
@@ -192,6 +218,12 @@ impl TryFrom<VulnerabilityModel> for Vulnerability {
             rejected_at: value.rejected_at,
             name: value.name,
             description: value.description,
+            references: value
+                .references
+                .0
+                .into_iter()
+                .map(TryFrom::try_from)
+                .collect::<Result<Vec<_>, _>>()?,
         })
     }
 }
@@ -230,8 +262,8 @@ impl VulnerabilityRepo for Postgres {
         let model: VulnerabilityModel = vulnerability.clone().into();
 
         let sql = r#"
-            INSERT INTO vulnerabilities (id, created_at, updated_at, key, reserved_at, published_at, rejected_at, name, description)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            INSERT INTO vulnerabilities (id, created_at, updated_at, key, reserved_at, published_at, rejected_at, name, description, "references")
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         "#;
 
         let query = sqlx::query(sql)
@@ -243,7 +275,8 @@ impl VulnerabilityRepo for Postgres {
             .bind(model.published_at)
             .bind(model.rejected_at)
             .bind(model.name)
-            .bind(model.description);
+            .bind(model.description)
+            .bind(model.references);
 
         match query.execute(pool).await {
             Ok(_) => Ok(vulnerability),

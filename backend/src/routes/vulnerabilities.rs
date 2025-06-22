@@ -86,8 +86,9 @@ pub async fn list(state: State<App>, q: Query<ListParams>) -> impl IntoResponse 
 
             let page_start = page * page_size.get();
             let page_end = (page + 1) * page_size.get();
+            let page_range = page_start..page_end.min(total_items);
 
-            if let Some(vulnerabilities) = vulnerabilities.get(page_start..page_end) {
+            if let Some(vulnerabilities) = vulnerabilities.get(page_range) {
                 let vulnerabilities = Paginated {
                     items: vulnerabilities.to_vec(),
                     total_items,

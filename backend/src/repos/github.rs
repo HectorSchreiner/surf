@@ -1,5 +1,7 @@
 use std::collections::HashMap;
+use std::fmt::{self, Debug, Display, Formatter};
 use std::io::{Cursor, Read};
+use std::num::NonZeroU64;
 use std::sync::{Arc, Mutex};
 
 use ::anyhow::anyhow;
@@ -62,7 +64,7 @@ impl Github {
             async move {
                 loop {
                     tracing::info!("started to poll vulnerabilities");
-                    match Self::poll(&client, true).await {
+                    match Self::poll(&client, false).await {
                         Ok(records) => {
                             tracing::info!(n = records.len(), "finished polling vulnerabilities");
 
@@ -263,23 +265,32 @@ impl Github {
 //     }
 // }
 
-#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
-#[serde(untagged)]
-pub enum CveTimestamp {
-    With(DateTime<Utc>),
-    Without(NaiveDateTime),
-}
+mod cve {
+    pub mod timestamp_opt {
+        use ::chrono::{DateTime, NaiveDateTime, Utc};
+        use ::serde::{Deserialize, Deserializer};
 
-impl CveTimestamp {
-    pub fn and_utc(&self) -> DateTime<Utc> {
-        match self {
-            Self::With(ts) => *ts,
-            Self::Without(ts) => ts.and_utc(),
+        #[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
+        #[serde(untagged)]
+        enum CveTimestamp {
+            Aware(DateTime<Utc>),
+            Naive(NaiveDateTime),
+        }
+
+        pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<DateTime<Utc>>, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            match Option::<CveTimestamp>::deserialize(deserializer)? {
+                Some(CveTimestamp::Aware(ts)) => Ok(Some(ts)),
+                Some(CveTimestamp::Naive(ts)) => Ok(Some(ts.and_utc())),
+                None => Ok(None),
+            }
         }
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct CveId {
     pub year: u16,
     pub id: u64,
@@ -313,34 +324,100 @@ impl TryFrom<&str> for CveId {
 
 impl From<CveId> for String {
     fn from(value: CveId) -> Self {
-        format!("CVE-{:04}-{:04}", value.year, value.id)
+        value.to_string()
     }
+}
+
+impl Debug for CveId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "CVE-{:04}-{:04}", self.year, self.id)
+    }
+}
+
+impl Display for CveId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+// #[serde_as]
+// #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+// #[serde(rename_all = "camelCase")]
+// pub struct CveMeta {
+//     #[serde_as(as = "TryFromInto<&str>")]
+//     #[serde(rename = "cveId")]
+//     pub id: CveId,
+//     pub state: String,
+//     #[serde(rename = "dateReserved")]
+//     pub reserved_at: Option<CveTimestamp>,
+//     #[serde(rename = "datePublished")]
+//     pub published_at: Option<CveTimestamp>,
+//     #[serde(rename = "dateRejected")]
+//     pub rejected_at: Option<CveTimestamp>,
+//     #[serde(rename = "dateUpdated")]
+//     pub updated_at: Option<CveTimestamp>,
+// }
+
+#[serde_as]
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct CvePublishedMeta {
+    #[serde_as(as = "TryFromInto<&str>")]
+    #[serde(rename = "cveId")]
+    pub id: CveId,
+    #[serde(default)]
+    pub serial: Option<NonZeroU64>,
+    #[serde(with = "cve::timestamp_opt", rename = "dateReserved")]
+    pub reserved_at: Option<DateTime<Utc>>,
+    #[serde(with = "cve::timestamp_opt", rename = "datePublished")]
+    pub published_at: Option<DateTime<Utc>>,
+    #[serde(with = "cve::timestamp_opt", rename = "dateUpdated")]
+    pub updated_at: Option<DateTime<Utc>>,
 }
 
 #[serde_as]
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
-pub struct CveMeta {
+pub struct CveRejectedMeta {
     #[serde_as(as = "TryFromInto<&str>")]
     #[serde(rename = "cveId")]
     pub id: CveId,
-    pub state: String,
-    #[serde(rename = "dateReserved")]
-    pub reserved_at: Option<CveTimestamp>,
-    #[serde(rename = "datePublished")]
-    pub published_at: Option<CveTimestamp>,
-    #[serde(rename = "dateRejected")]
-    pub rejected_at: Option<CveTimestamp>,
-    #[serde(rename = "dateUpdated")]
-    pub updated_at: Option<CveTimestamp>,
+    #[serde(default)]
+    pub serial: Option<NonZeroU64>,
+    #[serde(with = "cve::timestamp_opt", rename = "dateReserved")]
+    pub reserved_at: Option<DateTime<Utc>>,
+    #[serde(with = "cve::timestamp_opt", rename = "datePublished")]
+    pub published_at: Option<DateTime<Utc>>,
+    #[serde(with = "cve::timestamp_opt", rename = "dateUpdated")]
+    pub updated_at: Option<DateTime<Utc>>,
+    #[serde(with = "cve::timestamp_opt", rename = "dateRejected")]
+    pub rejected_at: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct CveReference {
-    pub url: Url,
-    #[serde(default)]
-    pub tags: Vec<String>,
+#[serde_as]
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[serde(tag = "state")]
+pub enum CveMeta {
+    #[serde(rename = "PUBLISHED")]
+    Published(CvePublishedMeta),
+    #[serde(rename = "REJECTED")]
+    Rejected(CveRejectedMeta),
+}
+
+impl CveMeta {
+    pub fn id(&self) -> CveId {
+        match self {
+            CveMeta::Published(meta) => meta.id,
+            CveMeta::Rejected(meta) => meta.id,
+        }
+    }
+
+    pub fn serial(&self) -> Option<NonZeroU64> {
+        match self {
+            CveMeta::Published(meta) => meta.serial,
+            CveMeta::Rejected(meta) => meta.serial,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -353,10 +430,44 @@ pub struct CveDescription {
 
 #[derive(Debug, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
-pub struct CveCnaContainer {
+pub struct CveProduct {
+    pub vendor: String,
+    pub product: String,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CveReference {
+    pub url: Url,
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
+    pub tags: Vec<String>,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CveCnaPublishedContainer {
     pub title: Option<String>,
     pub descriptions: Vec<CveDescription>,
+    pub affected: Vec<CveProduct>,
     pub references: Vec<CveReference>,
+}
+
+#[serde_as]
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CveCnaRejectedContainer {
+    rejected_reasons: Vec<CveDescription>,
+    #[serde_as(as = "Vec<TryFromInto<&str>>")]
+    replaced_by: Vec<CveId>,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub enum CveCnaContainer {
+    Published(CveCnaPublishedContainer),
+    Rejected(CveCnaRejectedContainer),
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -396,7 +507,7 @@ pub struct CveRecord {
     pub data_type: CveDataType,
     pub data_version: String,
     #[serde(rename = "cveMetadata")]
-    pub metadata: CveMeta,
+    pub meta: CveMeta,
     pub containers: HashMap<String, JsonValue>,
 }
 

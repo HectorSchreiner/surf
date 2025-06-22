@@ -1,5 +1,5 @@
 mod github;
 mod postgres;
 
-pub use github::{CveCnaContainer, Github, GithubConfig};
+pub use github::*;
 pub use postgres::Postgres;
