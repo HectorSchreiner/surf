@@ -5,6 +5,11 @@ services:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
       POSTGRES_DB: main
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "localhost", "-p", "5432", "-U", "user", "-d", "main"]
+      interval: 5s
+      timeout: 60s
+      retries: 5
     ports:
       - 5432:5432/tcp
     volumes:
@@ -17,4 +22,7 @@ services:
     environment:
       - PGWEB_DATABASE_URL=postgres://user:password@postgres:5432/main?sslmode=disable
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
+        restart: true
+
