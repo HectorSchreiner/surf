@@ -64,7 +64,7 @@ impl Github {
             async move {
                 loop {
                     tracing::info!("started to poll vulnerabilities");
-                    match Self::poll(&client, false).await {
+                    match Self::poll(&client, true).await {
                         Ok(records) => {
                             tracing::info!(n = records.len(), "finished polling vulnerabilities");
 
@@ -247,7 +247,7 @@ impl Github {
             Ok(record) => Ok(record),
             Err(err) => {
                 tracing::warn!(
-                    file = ?str::from_utf8(&file),
+                    file = ?str::from_utf8(&file).unwrap(),
                     ?err,
                     "failed to decode asset file"
                 );
@@ -367,11 +367,11 @@ pub struct CvePublishedMeta {
     pub id: CveId,
     #[serde(default)]
     pub serial: Option<NonZeroU64>,
-    #[serde(with = "cve::timestamp_opt", rename = "dateReserved")]
+    #[serde(with = "cve::timestamp_opt", default, rename = "dateReserved")]
     pub reserved_at: Option<DateTime<Utc>>,
-    #[serde(with = "cve::timestamp_opt", rename = "datePublished")]
+    #[serde(with = "cve::timestamp_opt", default, rename = "datePublished")]
     pub published_at: Option<DateTime<Utc>>,
-    #[serde(with = "cve::timestamp_opt", rename = "dateUpdated")]
+    #[serde(with = "cve::timestamp_opt", default, rename = "dateUpdated")]
     pub updated_at: Option<DateTime<Utc>>,
 }
 
@@ -384,13 +384,13 @@ pub struct CveRejectedMeta {
     pub id: CveId,
     #[serde(default)]
     pub serial: Option<NonZeroU64>,
-    #[serde(with = "cve::timestamp_opt", rename = "dateReserved")]
+    #[serde(with = "cve::timestamp_opt", default, rename = "dateReserved")]
     pub reserved_at: Option<DateTime<Utc>>,
-    #[serde(with = "cve::timestamp_opt", rename = "datePublished")]
+    #[serde(with = "cve::timestamp_opt", default, rename = "datePublished")]
     pub published_at: Option<DateTime<Utc>>,
-    #[serde(with = "cve::timestamp_opt", rename = "dateUpdated")]
+    #[serde(with = "cve::timestamp_opt", default, rename = "dateUpdated")]
     pub updated_at: Option<DateTime<Utc>>,
-    #[serde(with = "cve::timestamp_opt", rename = "dateRejected")]
+    #[serde(with = "cve::timestamp_opt", default, rename = "dateRejected")]
     pub rejected_at: Option<DateTime<Utc>>,
 }
 
@@ -431,8 +431,8 @@ pub struct CveDescription {
 #[derive(Debug, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct CveProduct {
-    pub vendor: String,
-    pub product: String,
+    pub vendor: Option<String>,
+    pub product: Option<String>,
 }
 
 #[derive(Debug, Deserialize, PartialEq)]

@@ -1,10 +1,12 @@
+use std::ops::Range;
+
 use ::async_trait::async_trait;
 use ::chrono::{DateTime, Utc};
 use ::futures::Stream;
 use ::serde::{Deserialize, Serialize};
 use ::thiserror::Error;
+use ::url::Url;
 use ::uuid::Uuid;
-use url::Url;
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[cfg_attr(feature = "docs", derive(utoipa::ToSchema))]
@@ -71,10 +73,27 @@ impl Vulnerability {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct ListVulnerabilities {
+    pub range: Option<Range<usize>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ListedVulnerabilities {
+    pub total_vulnerabilities: usize,
+    pub vulnerabilities: Vec<Vulnerability>,
+}
+
 #[derive(Debug, Error)]
 pub enum ListVulnerabilitiesError {
     #[error(transparent)]
     Other(anyhow::Error),
+}
+
+impl ListVulnerabilitiesError {
+    pub fn other(err: impl Into<anyhow::Error>) -> Self {
+        Self::Other(err.into())
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -110,7 +129,10 @@ pub enum NewVulnerabilityError {
 #[async_trait]
 pub trait VulnerabilityRepo: Send + Sync + 'static {
     /// Lists all vulnerabilities in the repository
-    async fn list_vulnerabilities(&self) -> Result<Vec<Vulnerability>, ListVulnerabilitiesError>;
+    async fn list_vulnerabilities(
+        &self,
+        req: ListVulnerabilities,
+    ) -> Result<ListedVulnerabilities, ListVulnerabilitiesError>;
 
     /// Searches for vulnerabilities
     async fn search_vulnerabilities(

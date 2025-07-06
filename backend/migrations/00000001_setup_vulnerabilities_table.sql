@@ -10,6 +10,7 @@ CREATE TABLE vulnerabilities (
     name TEXT NOT NULL,
     description TEXT NOT NULL,
     "references" JSONB NOT NULL,
+    "metrics": JSONB NOT NULL,
 
     UNIQUE (key)
 );

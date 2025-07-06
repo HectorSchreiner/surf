@@ -230,18 +230,48 @@ impl TryFrom<VulnerabilityModel> for Vulnerability {
 
 type NewVulnerabilityResult = Result<Vulnerability, NewVulnerabilityError>;
 
+impl From<sqlx::Error> for ListVulnerabilitiesError {
+    fn from(value: sqlx::Error) -> Self {
+        Self::Other(value.into())
+    }
+}
+
 #[async_trait]
 impl VulnerabilityRepo for Postgres {
-    async fn list_vulnerabilities(&self) -> Result<Vec<Vulnerability>, ListVulnerabilitiesError> {
+    async fn list_vulnerabilities(
+        &self,
+        req: ListVulnerabilities,
+    ) -> Result<ListedVulnerabilities, ListVulnerabilitiesError> {
         let Self { pool } = &self;
 
-        let sql = r#"SELECT * FROM vulnerabilities"#;
-        let query = sqlx::query_as::<_, VulnerabilityModel>(sql);
+        let mut transaction = pool.begin().await?;
 
-        match query.fetch_all(pool).await {
+        // Fetch the total count
+        let sql = r#"SELECT COUNT(1) FROM vulnerabilities"#;
+        let query = sqlx::query_as::<_, (i64,)>(sql);
+        let total_vulnerabilities = query.fetch_one(transaction.as_mut()).await?.0 as _;
+
+        // Fetch the records
+        let ListVulnerabilities { range } = req;
+        let query = match range {
+            Some(range) => {
+                let sql = r#"SELECT * FROM vulnerabilities LIMIT $1 OFFSET $2"#;
+                sqlx::query_as::<_, VulnerabilityModel>(sql)
+                    .bind((range.end - range.start) as i64)
+                    .bind(range.start as i64)
+            }
+            None => {
+                let sql = r#"SELECT * FROM vulnerabilities"#;
+                sqlx::query_as::<_, VulnerabilityModel>(sql)
+            }
+        };
+
+        match query.fetch_all(transaction.as_mut()).await {
             Ok(models) => {
                 let results = models.into_iter().map(TryFrom::try_from);
-                Ok(results.collect::<Result<_, _>>().unwrap())
+                let vulnerabilities = results.collect::<Result<_, _>>().unwrap();
+
+                Ok(ListedVulnerabilities { total_vulnerabilities, vulnerabilities })
             }
             Err(err) => Err(ListVulnerabilitiesError::Other(err.into())),
         }

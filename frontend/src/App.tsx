@@ -1,20 +1,16 @@
-import { For, type Component } from 'solid-js';
+import { type Component } from "solid-js";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/solid-query";
-import { useVulnerabilities } from './hooks/useVulnerabilities';
+import { createRouter, RouterProvider } from "@tanstack/solid-router";
 
-const VulnerabilitiesList: Component = () => {
-  const vulnerabilities = useVulnerabilities();
+import { routeTree } from "./routeTree.gen";
 
-  return (
-    <For each={vulnerabilities.data}>
-      {(vulnerability) => (
-        <li>
-          <p>{vulnerability.key}</p>
-        </li>
-      )}
-    </For>
-  )
+const router = createRouter({ routeTree });
+
+declare module "@tanstack/solid-router" {
+  interface Register {
+    router: typeof router;
+  }
 }
 
 const App: Component = () => {
@@ -22,9 +18,8 @@ const App: Component = () => {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <VulnerabilitiesList />
+      <RouterProvider router={router} />
     </QueryClientProvider>
-
   );
 };
 

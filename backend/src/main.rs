@@ -89,7 +89,7 @@ async fn main() -> anyhow::Result<()> {
         });
     }
 
-    github.start();
+    // github.start();
 
     // let contents = fs::read("/home/sebberas/Desktop/surf/CVE-2019-1002100.json")
     //     .await
