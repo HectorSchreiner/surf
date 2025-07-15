@@ -4,21 +4,37 @@ use ::axum::Router;
 use ::axum::http::StatusCode;
 use ::axum::response::{Html, Json};
 use ::axum::routing::{get, post};
+<<<<<<< HEAD
+use ::http::StatusCode;
+use ::tokio::sync::Mutex;
+
+use crate::domains::alerts::Alert;
+use crate::routes::alerts::{create_alert, list_alerts};
+use crate::services::vulnerabilities::VulnerabilityService;
+=======
 use ::chrono::Utc;
 use ::tokio::sync::Mutex;
 use ::uuid::Uuid;
+>>>>>>> main
 
 use crate::routes::alerts::{create_alert, list_alerts};
 
 mod alerts;
 mod users;
+mod vulnerabilities;
 
-pub fn setup() -> Router {
+#[derive(Clone)]
+pub struct App {
+    pub vulnerability_service: Arc<dyn VulnerabilityService>,
+    pub alerts: Arc<Mutex<Vec<Alert>>>,
+}
+
+pub fn setup(app: App) -> Router {
     let router = Router::new()
         .route("/api/v1/vulnerabilities", get(vulnerabilities::list))
         .route("/api/v1/alerts", get(list_alerts))
         .route("/api/v1/alerts", post(create_alert))
-        .with_state(Arc::new(Mutex::new(Vec::new())));
+        .with_state(app);
 
     #[cfg(feature = "docs")]
     let router = router
@@ -46,30 +62,4 @@ async fn docs() -> Html<String> {
     use utoipa_redoc::Redoc;
 
     Html(Redoc::new(ApiDocs::openapi()).to_html())
-}
-
-mod vulnerabilities {
-    use super::*;
-    use crate::domains::vulnerabilities::Vulnerability;
-
-    #[cfg_attr(feature = "docs", utoipa::path(
-        get,
-        path = "/api/v1/vulnerabilities",
-        responses(
-            (status = 200, description = "Successfully listed vulnerabilities", body = Vec<Vulnerability>),
-            (status = 500, description = "Failed to list vulnerabilities, because of an internal server error", body=String)
-        ),
-    ))]
-    pub async fn list() -> (StatusCode, Json<Vec<Vulnerability>>) {
-        let vulnerabilities = vec![Vulnerability {
-            id: Uuid::new_v4(),
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
-            name: "skrt".to_string(),
-            description: "bob bob".to_string(),
-            key: "CVE-2025-0001".to_string(),
-        }];
-
-        (StatusCode::OK, Json(vulnerabilities))
-    }
 }

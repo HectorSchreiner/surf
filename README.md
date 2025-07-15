@@ -20,7 +20,17 @@ Surf is a security tool, that allows you to scan your internal surface for the l
 * [Features](#features)
 * [License](#license)
 
+<<<<<<< HEAD
+<<<<<<< Updated upstream
+---
+
+# Getting Started
+=======
 ## Getting Started
+>>>>>>> Stashed changes
+=======
+## Getting Started
+>>>>>>> main
 
 
 ## For Development
@@ -32,6 +42,11 @@ Make sure you have installed `Docker, Rust & npm` on your machine
 
 Requests to `localhost:3000/api` are proxied to `localhost:4000/api`
 
+<<<<<<< HEAD
+<<<<<<< Updated upstream
+=======
+=======
+>>>>>>> main
 **Linux**
 ```bash
 docker compose -f compose.dev.yaml up -d
@@ -40,12 +55,21 @@ docker compose -f compose.dev.yaml up -d
 ```
 
 **Nix Specific**
+<<<<<<< HEAD
+
+Install the dependencies using the provided flake.nix. (This installs: postman, nodejs, docker & cargo-watch)
+=======
 Install the dependencies using the provided flake.nix. (This installs: postman nodejs, docker, cargo-watch, rustc & cargo)
+>>>>>>> main
 ```bash
 nix develop
 ```
 
 **Windows**
+<<<<<<< HEAD
+>>>>>>> Stashed changes
+=======
+>>>>>>> main
 ```powershell
 docker compose -f compose.dev.yaml up -d
 cd backend; cargo watch -x run --features=docs;

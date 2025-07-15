@@ -1,5 +1,17 @@
 use std::sync::Arc;
 
+<<<<<<< HEAD
+use ::axum::extract::{Json, State};
+use ::axum::http::StatusCode;
+use ::axum::response::IntoResponse;
+use ::chrono::{DateTime, Utc};
+use ::serde::{Deserialize, Serialize};
+use ::tokio::sync::Mutex;
+use ::uuid::Uuid;
+
+use crate::domains::alerts::*;
+use crate::routes::App;
+=======
 use ::axum::Json;
 use ::axum::extract::State;
 use ::axum::http::StatusCode;
@@ -8,6 +20,7 @@ use ::tokio::sync::Mutex;
 
 use crate::domains::alerts::*;
 use crate::repos::postgres::{self, *};
+>>>>>>> main
 
 #[axum::debug_handler]
 #[cfg_attr(feature = "docs", utoipa::path(
@@ -19,18 +32,30 @@ use crate::repos::postgres::{self, *};
         (status = 500, description = "Failed to create alert, because of an internal server error", body=String)
     ),
 ))]
+<<<<<<< HEAD
+pub async fn create_alert(state: State<App>, payload: Json<CreateAlert>) -> impl IntoResponse {
+    let App { alerts, .. } = &state.0;
+    let Json(payload) = payload;
+
+=======
 pub async fn create_alert(
     State(alert_db): State<AlertDB>,
     Json(payload): Json<CreateAlert>,
 ) -> (StatusCode, Json<Alert>) {
+>>>>>>> main
     let alert = Alert {
         id: AlertId::new(),
         created_at: Utc::now(),
+<<<<<<< HEAD
+=======
         name: payload.name,
+>>>>>>> main
         message: payload.message,
         severity: payload.severity,
     };
-    alert_db.lock().await.push(alert.clone());
+
+    alerts.lock().await.push(alert.clone());
+
     (StatusCode::CREATED, Json::from(alert))
 }
 
@@ -45,7 +70,8 @@ type AlertDB = Arc<Mutex<Vec<Alert>>>;
         (status = 500, description = "Failed to list alerts, because of an internal server error", body=String)
     ),
 ))]
-pub async fn list_alerts(State(alert_db): State<AlertDB>) -> (StatusCode, Json<Vec<Alert>>) {
-    let alerts = alert_db.lock().await.clone();
+pub async fn list_alerts(state: State<App>) -> (StatusCode, Json<Vec<Alert>>) {
+    let App { alerts, .. } = state.0;
+    let alerts = alerts.lock().await.clone();
     (StatusCode::OK, Json::from(alerts))
 }
