@@ -20,30 +20,6 @@ Surf is a security tool, that allows you to scan your internal surface for the l
 * [Features](#features)
 * [License](#license)
 
-## Tech Stack
-| Language     | Files | Lines | Code | Comments | Blanks |
-|--------------|-------|-------|------|----------|--------|
-| CSS          | 2     | 2     | 2    | 0        | 0      |
-| HTML         | 2     | 33    | 31   | 0        | 2      |
-| JavaScript   | 1     | 1     | 1    | 0        | 0      |
-| JSON         | 2     | 44    | 44   | 0        | 0      |
-| Nix          | 1     | 31    | 17   | 7        | 7      |
-| Shell        | 1     | 61    | 46   | 5        | 10     |
-| SQL          | 3     | 27    | 25   | 0        | 2      |
-| TOML         | 4     | 66    | 60   | 0        | 6      |
-| TSX          | 3     | 63    | 47   | 1        | 15     |
-| TypeScript   | 2     | 20    | 19   | 0        | 1      |
-| YAML         | 2     | 1950  | 1530 | 0        | 420    |
-| Markdown     | 1     | 46    | 0    | 33       | 13     |
-| └─ BASH      | 1     | 3     | 3    | 0        | 0      |
-| └─ PowerShell| 1     | 3     | 3    | 0        | 0      |
-| (Subtotal)   |       | 52    | 6    | 33       | 13     |
-| Rust         | 16    | 1020  | 836  | 13       | 171    |
-| └─ Markdown  | 4     | 15    | 0    | 14       | 1      |
-| (Subtotal)   |       | 1035  | 836  | 27       | 172    |
-| **Total**    | 40    | 3364  | 2658 | 59       | 647    |
-
-
 ## Getting Started
 
 
