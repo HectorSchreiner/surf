@@ -3,6 +3,7 @@ use ::chrono::{DateTime, Utc};
 use ::sqlx::migrate;
 use ::sqlx::postgres::PgPool;
 use ::sqlx::prelude::*;
+use tracing::trace;
 use ::uuid::Uuid;
 use serde::{Deserialize, Serialize};
 use sqlx::types::Json;
@@ -43,6 +44,29 @@ impl Postgres {
 
         query.execute(pool).await.map(|_| ())
     }
+<<<<<<< Updated upstream
+=======
+
+    #[tracing::instrument(skip(self, m))]
+    async fn insert_alert(&self, m: AlertModel) -> sqlx::Result<()> {
+        trace!("Hello, from postgres insert_alert: {:?}", m);
+        let Self { pool } = self;
+
+        let sql = r#"
+            INSERT INTO alerts (id, created_at, name, message, severity)
+            VALUES ($1, $2, $3, $4, $5)
+        "#;
+
+        let query = sqlx::query(sql)
+            .bind(m.id)
+            .bind(m.created_at)
+            .bind(m.name)
+            .bind(m.message)
+            .bind(m.severity);
+
+        query.execute(pool).await.map(|_| ())
+    }
+>>>>>>> Stashed changes
 }
 
 #[derive(FromRow)]
@@ -296,6 +320,7 @@ impl VulnerabilityRepo for Postgres {
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         "#;
 
+<<<<<<< Updated upstream
         let query = sqlx::query(sql)
             .bind(model.id)
             .bind(model.created_at)
@@ -311,6 +336,66 @@ impl VulnerabilityRepo for Postgres {
         match query.execute(pool).await {
             Ok(_) => Ok(vulnerability),
             Err(err) => Err(NewVulnerabilityError::Other(err.into())),
+=======
+impl Into<AlertModel> for Alert {
+    fn into(self) -> AlertModel {
+        AlertModel {
+            id: self.id.to_uuid(),
+            created_at: self.created_at,
+            name: self.name.to_string(),
+            message: self.message.to_string(),
+            severity: self.severity,
+        }
+    }
+}
+
+#[async_trait]
+impl AlertRepo for Postgres {
+    async fn list_alerts(&self) -> Result<Vec<Alert>, ListAlertsError> {
+        let Self { pool } = &self;
+
+        let sql = r#"SELECT * FROM alerts"#;
+        let query = sqlx::query_as::<_, AlertModel>(sql);
+
+        match query.fetch_all(pool).await {
+            Ok(models) => {
+                let alerts = models.into_iter().map(TryInto::try_into);
+                Ok(alerts.collect::<Result<_, _>>().unwrap())
+            }
+            Err(err) => Err(ListAlertsError::Other(err.into())),
+        }
+    }
+
+    async fn new_alert(&self, new_alert: NewAlert) -> Result<Alert, NewAlertError> {
+        let name = AlertName::parse(new_alert.name)
+            .map_err(|e| NewAlertError::Other(anyhow::format_err!(e)))?;
+
+        let message = AlertMessage::parse(new_alert.message)
+            .map_err(|e| NewAlertError::Other(anyhow::format_err!(e)))?;
+
+        let alert = Alert {
+            id: AlertId::new(),
+            created_at: new_alert.created_at,
+            name: name,
+            message: message,
+            severity: new_alert.severity,
+        };
+
+        let model: AlertModel = alert.clone().into();
+
+        tracing::info!("inserting alert in database"); 
+
+        tracing::info!("Alert: {:?} \n \nModel: {:?}", alert, model);
+        match self.insert_alert(model).await {
+            Ok(_) => {
+                tracing::info!("successfully inserted alert in database");
+                Ok(alert)
+            }
+            Err(err) => {
+                tracing::error!("failed to insert alert in database");
+                Err(NewAlertError::Other(err.into()))
+            }
+>>>>>>> Stashed changes
         }
     }
 }

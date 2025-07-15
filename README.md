@@ -17,9 +17,13 @@
 
 **Surf** is a blazingly fast and safe **attack surface management application**.
 
+<<<<<<< Updated upstream
 ---
 
 # Getting Started
+=======
+## Getting Started
+>>>>>>> Stashed changes
 
 
 ## For Development
@@ -44,6 +48,24 @@ cd frontend && pnpm start
 
 Requests to `localhost:3000/api` are proxied to `localhost:4000/api`
 
+<<<<<<< Updated upstream
+=======
+**Linux**
+```bash
+docker compose -f compose.dev.yaml up -d
+./run_backend 
+./run_frontend; 
+```
+
+**Nix Specific**
+
+Install the dependencies using the provided flake.nix. (This installs: postman, nodejs, docker & cargo-watch)
+```bash
+nix develop
+```
+
+**Windows**
+>>>>>>> Stashed changes
 ```powershell
 docker compose -f compose.dev.yaml up -d
 cd backend; cargo watch -x run --features=docs
