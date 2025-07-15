@@ -4,13 +4,13 @@ use ::serde::{Deserialize, Serialize};
 
 use crate::config::SecurityConfig;
 use crate::domains;
-use crate::domains::users::{NewUser, UserId, UserRepo};
+use crate::domains::users::{EmailAddress, NewUser, UserId, UserRepo};
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[cfg_attr(feature = "docs", derive(utoipa::ToSchema))]
 pub struct User {
     pub id: UserId,
-    pub email: String,
+    pub email: EmailAddress,
     pub name: String,
 }
 
@@ -27,12 +27,13 @@ pub struct UserService {
 impl UserService {
     pub async fn new(user_repo: impl UserRepo, config: SecurityConfig) -> anyhow::Result<Self> {
         let SecurityConfig { admin_email, admin_password, .. } = config;
+        let admin_email = EmailAddress::parse(admin_email.clone()).unwrap();
 
         let users = user_repo.list_users().await?;
         let admin_user = users.iter().find(|user| user.email == admin_email);
         if admin_user.is_none() {
             let new_user = NewUser {
-                email: admin_email,
+                email: admin_email.clone(),
                 password: admin_password,
                 name: "admin".to_string(),
                 reset: true,

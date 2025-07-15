@@ -1,8 +1,14 @@
 backend/target/
 data/
 frontend/node_modules/
+<<<<<<< HEAD
 frontend/src/api.gen.ts
 frontend/src/routeTree.gen.ts
 
 .env
 .tanstack
+=======
+frontend/src/schema.d.ts
+
+.env
+>>>>>>> main

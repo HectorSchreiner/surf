@@ -1,14 +1,22 @@
 use ::async_trait::async_trait;
 use ::chrono::{DateTime, Utc};
+use ::secrecy::SecretString;
 use ::sqlx::migrate;
-use ::sqlx::postgres::PgPool;
+use ::sqlx::postgres::{PgConnectOptions, PgPool};
 use ::sqlx::prelude::*;
 use tracing::trace;
 use ::uuid::Uuid;
+<<<<<<< HEAD
 use serde::{Deserialize, Serialize};
 use sqlx::types::Json;
 use url::Url;
+=======
+use anyhow::Error;
+use url::ParseError;
+>>>>>>> main
 
+use crate::config::DatabaseConfig;
+use crate::domains::alerts::*;
 use crate::domains::users::*;
 use crate::domains::vulnerabilities::*;
 
@@ -18,8 +26,19 @@ pub struct Postgres {
 }
 
 impl Postgres {
-    pub async fn connect() -> anyhow::Result<Self> {
-        let pool = PgPool::connect("postgresql://user:password@localhost:5432/main").await?;
+    pub async fn connect(config: DatabaseConfig) -> anyhow::Result<Self> {
+        use ::secrecy::ExposeSecret;
+
+        let DatabaseConfig { url, user, password } = config;
+
+        let options = PgConnectOptions::new()
+            .host(url.host())
+            .port(url.port())
+            .database(url.database())
+            .username(&user)
+            .password(password.expose_secret());
+
+        let pool = PgPool::connect_with(options).await?;
 
         migrate!("./migrations").run(&pool).await?;
 
@@ -44,12 +63,18 @@ impl Postgres {
 
         query.execute(pool).await.map(|_| ())
     }
+<<<<<<< HEAD
 <<<<<<< Updated upstream
 =======
 
     #[tracing::instrument(skip(self, m))]
     async fn insert_alert(&self, m: AlertModel) -> sqlx::Result<()> {
         trace!("Hello, from postgres insert_alert: {:?}", m);
+=======
+
+    #[tracing::instrument(skip(self, m))]
+    async fn insert_alert(&self, m: AlertModel) -> sqlx::Result<()> {
+>>>>>>> main
         let Self { pool } = self;
 
         let sql = r#"
@@ -66,7 +91,10 @@ impl Postgres {
 
         query.execute(pool).await.map(|_| ())
     }
+<<<<<<< HEAD
 >>>>>>> Stashed changes
+=======
+>>>>>>> main
 }
 
 #[derive(FromRow)]
@@ -79,15 +107,15 @@ struct UserModel {
 }
 
 impl From<User> for UserModel {
-    fn from(value: User) -> Self {
-        use ::secrecy::ExposeSecret;
+    fn from(user: User) -> Self {
+        use secrecy::ExposeSecret;
 
         Self {
-            id: value.id.into(),
-            email: value.email,
-            password: value.password.expose_secret().to_string(),
-            name: value.name,
-            reset: value.reset,
+            id: user.id.into(),
+            email: user.email.into(),
+            password: user.password.expose_secret().to_string(),
+            name: user.name,
+            reset: user.reset,
         }
     }
 }
@@ -95,13 +123,13 @@ impl From<User> for UserModel {
 impl TryFrom<UserModel> for User {
     type Error = anyhow::Error;
 
-    fn try_from(value: UserModel) -> Result<Self, Self::Error> {
-        Ok(Self {
-            id: value.id.into(),
-            email: value.email,
-            password: value.password.into(),
-            name: value.name,
-            reset: value.reset,
+    fn try_from(model: UserModel) -> Result<Self, Self::Error> {
+        Ok(User {
+            id: UserId::from(model.id),
+            email: EmailAddress::parse(&model.email)?,
+            password: SecretString::from(model.password),
+            name: model.name,
+            reset: model.reset,
         })
     }
 }
@@ -396,6 +424,87 @@ impl AlertRepo for Postgres {
                 Err(NewAlertError::Other(err.into()))
             }
 >>>>>>> Stashed changes
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, FromRow)]
+struct AlertModel {
+    pub id: Uuid,
+    pub created_at: DateTime<Utc>,
+    pub name: String,
+    pub message: String,
+    pub severity: AlertSeverity,
+}
+
+impl TryFrom<AlertModel> for Alert {
+    type Error = anyhow::Error;
+
+    fn try_from(value: AlertModel) -> Result<Self, Self::Error> {
+        Ok(Self {
+            id: value.id.into(),
+            created_at: value.created_at,
+            name: AlertName::parse(value.name)?,
+            message: AlertMessage::parse(value.message)?,
+            severity: value.severity,
+        })
+    }
+}
+
+impl Into<AlertModel> for Alert {
+    fn into(self) -> AlertModel {
+        AlertModel {
+            id: self.id.to_uuid(),
+            created_at: self.created_at,
+            name: self.name.to_string(),
+            message: self.message.to_string(),
+            severity: self.severity,
+        }
+    }
+}
+
+#[async_trait]
+impl AlertRepo for Postgres {
+    async fn list_alerts(&self) -> Result<Vec<Alert>, ListAlertsError> {
+        let Self { pool } = &self;
+
+        let sql = r#"SELECT * FROM alerts"#;
+        let query = sqlx::query_as::<_, AlertModel>(sql);
+
+        match query.fetch_all(pool).await {
+            Ok(models) => {
+                let alerts = models.into_iter().map(TryInto::try_into);
+                Ok(alerts.collect::<Result<_, _>>().unwrap())
+            }
+            Err(err) => Err(ListAlertsError::Other(err.into())),
+        }
+    }
+
+    async fn new_alert(&self, new_alert: NewAlert) -> Result<Alert, NewAlertError> {
+        let name = AlertName::parse(new_alert.name)
+            .map_err(|e| NewAlertError::Other(anyhow::format_err!(e)))?;
+
+        let message = AlertMessage::parse(new_alert.message)
+            .map_err(|e| NewAlertError::Other(anyhow::format_err!(e)))?;
+
+        let alert = Alert {
+            id: AlertId::new(),
+            created_at: new_alert.created_at,
+            name: name,
+            message: message,
+            severity: new_alert.severity,
+        };
+
+        tracing::info!("inserting alert in database");
+        match self.insert_alert(alert.clone().into()).await {
+            Ok(_) => {
+                tracing::info!("successfully inserted alert in database");
+                Ok(alert)
+            }
+            Err(err) => {
+                tracing::error!("failed to insert alert in database");
+                Err(NewAlertError::Other(err.into()))
+            }
         }
     }
 }

@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+<<<<<<< HEAD
 use ::axum::extract::{Json, State};
 use ::axum::http::StatusCode;
 use ::axum::response::IntoResponse;
@@ -10,6 +11,16 @@ use ::uuid::Uuid;
 
 use crate::domains::alerts::*;
 use crate::routes::App;
+=======
+use ::axum::Json;
+use ::axum::extract::State;
+use ::axum::http::StatusCode;
+use ::chrono::Utc;
+use ::tokio::sync::Mutex;
+
+use crate::domains::alerts::*;
+use crate::repos::postgres::{self, *};
+>>>>>>> main
 
 #[axum::debug_handler]
 #[cfg_attr(feature = "docs", utoipa::path(
@@ -21,14 +32,24 @@ use crate::routes::App;
         (status = 500, description = "Failed to create alert, because of an internal server error", body=String)
     ),
 ))]
+<<<<<<< HEAD
 pub async fn create_alert(state: State<App>, payload: Json<CreateAlert>) -> impl IntoResponse {
     let App { alerts, .. } = &state.0;
     let Json(payload) = payload;
 
+=======
+pub async fn create_alert(
+    State(alert_db): State<AlertDB>,
+    Json(payload): Json<CreateAlert>,
+) -> (StatusCode, Json<Alert>) {
+>>>>>>> main
     let alert = Alert {
-        name: payload.name,
-        id: Uuid::new_v4(),
+        id: AlertId::new(),
         created_at: Utc::now(),
+<<<<<<< HEAD
+=======
+        name: payload.name,
+>>>>>>> main
         message: payload.message,
         severity: payload.severity,
     };

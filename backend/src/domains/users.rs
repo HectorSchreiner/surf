@@ -22,10 +22,30 @@ impl From<UserId> for Uuid {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Eq)]
+#[cfg_attr(feature = "docs", derive(utoipa::ToSchema))]
+pub struct EmailAddress(String);
+
+impl Into<String> for EmailAddress {
+    fn into(self) -> String {
+        self.0
+    }
+}
+
+#[derive(Error, Debug, Clone, PartialEq, Serialize, Deserialize, Eq)]
+#[error("{0} is not a valid email address")]
+pub struct ParseEmailAddressError(String);
+
+impl EmailAddress {
+    pub fn parse(s: impl Into<String>) -> Result<Self, ParseEmailAddressError> {
+        Ok(Self(s.into()))
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct User {
     pub id: UserId,
-    pub email: String,
+    pub email: EmailAddress,
     pub password: SecretString,
     pub name: String,
     pub reset: bool,
@@ -39,7 +59,7 @@ pub enum ListUsersError {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct NewUser {
-    pub email: String,
+    pub email: EmailAddress,
     pub password: SecretString,
     pub name: String,
     pub reset: bool,

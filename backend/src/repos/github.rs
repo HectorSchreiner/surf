@@ -22,9 +22,7 @@ use ::tracing::{Instrument, info, info_span};
 use ::url::Url;
 use ::zip::ZipArchive;
 
-use crate::domains::vulnerabilities::{VulnerabilityEvent, VulnerabilityFeed};
-
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct GithubConfig {
     pub access_token: SecretString,

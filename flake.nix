@@ -22,6 +22,11 @@
           pkgs.nodejs
           pkgs.docker
           pkgs.cargo-watch
+<<<<<<< HEAD
+=======
+          pkgs.rustc
+          pkgs.cargo
+>>>>>>> main
         ];
 
         shellHook = ''
